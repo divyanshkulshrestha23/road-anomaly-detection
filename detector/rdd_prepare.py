@@ -224,24 +224,26 @@ def parse_yolo(txt: Path, src_names: list[str], targets: set[str], drop: Counter
     return boxes
 
 
-def yolo_id_histogram(txts: dict[str, list[Path]]) -> tuple[Counter, dict[str, Counter], int]:
+def yolo_id_histogram(txts: dict[str, list[Path]], sample: int = 4000, seed: int = 0) -> tuple[Counter, dict[str, Counter], int, int]:
     total: Counter = Counter()
     by_country: dict[str, Counter] = defaultdict(Counter)
     empty = 0
-    for paths in txts.values():
-        for t in paths:
-            lines = [l.split() for l in t.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
-            if not lines:
-                empty += 1
-            c = detect_country(t)
-            for parts in lines:
-                cid = parts[0]
-                total[cid] += 1
-                by_country[c][cid] += 1
-    return total, by_country, empty
+    files = [t for paths in txts.values() for t in paths]
+    if sample and len(files) > sample:
+        files = random.Random(seed).sample(files, sample)
+    for t in files:
+        lines = [l.split() for l in t.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
+        if not lines:
+            empty += 1
+        c = detect_country(t)
+        for parts in lines:
+            cid = parts[0]
+            total[cid] += 1
+            by_country[c][cid] += 1
+    return total, by_country, empty, len(files)
 
 
-def inspect(src: Path, class_names: list[str] | None = None) -> int:
+def inspect(src: Path, class_names: list[str] | None = None, sample: int = 4000) -> int:
     images, xmls, txts, yamls = scan(src)
     print(f"Source: {src}")
     print(f"Images: {len(images)}   XML files: {sum(map(len, xmls.values()))}   TXT files: {sum(map(len, txts.values()))}   YAML/name files: {len(yamls)}")
@@ -262,9 +264,9 @@ def inspect(src: Path, class_names: list[str] | None = None) -> int:
     names = yolo_source_names(yamls, class_names)
     print(f"Class names found: {names}")
     if txts:
-        total, per_c, empty = yolo_id_histogram(txts)
-        print(f"YOLO class-id counts (all labels): {dict(sorted(total.items(), key=lambda kv: float(kv[0])))}")
-        print(f"Empty label files (background images): {empty}")
+        total, per_c, empty, n = yolo_id_histogram(txts, sample)
+        print(f"YOLO class-id counts (random sample of {n} label files): {dict(sorted(total.items(), key=lambda kv: float(kv[0])))}")
+        print(f"Empty label files in sample (background images): {empty}")
         for c, cnt in sorted(per_c.items()):
             print(f"  {c:16s} {dict(sorted(cnt.items(), key=lambda kv: float(kv[0])))}")
     raw_counts: Counter = Counter()
@@ -290,7 +292,14 @@ def preview(src: Path, out: Path, per_class: int = 8, prefer: str = "India", see
     stems = list(txts.keys())
     rng.shuffle(stems)
     stems.sort(key=lambda st: 0 if prefer.lower() in st.lower() else 1)
-    for st in stems:
+    since_new = 0
+    for n_read, st in enumerate(stems):
+        # Stop once every class seen so far is full and no new class id has appeared for a while.
+        if hits and all(len(v) >= per_class for v in hits.values()) and since_new > 1500:
+            break
+        if n_read >= 20000:
+            break
+        since_new += 1
         lab = txts[st][0]
         rows = [l.split() for l in lab.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
         ids = {r[0] for r in rows}
@@ -298,8 +307,11 @@ def preview(src: Path, out: Path, per_class: int = 8, prefer: str = "India", see
         if not imgs:
             continue
         for cid in ids:
+            if cid not in hits:
+                since_new = 0
             if len(hits[cid]) < per_class:
                 hits[cid].append((pick_label(lab, imgs), [list(map(float, r[1:5])) for r in rows if r[0] == cid]))
+    print(f"Read {n_read + 1} label files; class ids found: {sorted(hits, key=float)}")
     out.mkdir(parents=True, exist_ok=True)
     tile = 320
     for cid, items in sorted(hits.items(), key=lambda kv: float(kv[0])):
@@ -470,6 +482,7 @@ def main() -> int:
     ap.add_argument("--out", type=Path)
     ap.add_argument("--inspect", action="store_true")
     ap.add_argument("--preview", type=Path, help="Write one image grid per class id to this folder")
+    ap.add_argument("--sample", type=int, default=4000, help="Label files to sample in --inspect (0 = all)")
     ap.add_argument("--class-names", nargs="*", help="Source class names in id order, e.g. D00 D10 D20 D40")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--val-frac", type=float, default=0.1)
@@ -480,7 +493,7 @@ def main() -> int:
                     help="Max share of no-object images in the final set")
     a = ap.parse_args()
     if a.inspect:
-        return inspect(a.src, a.class_names)
+        return inspect(a.src, a.class_names, a.sample)
     if a.preview:
         return preview(a.src, a.preview)
     if a.out is None:

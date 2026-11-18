@@ -1,6 +1,6 @@
 """Prepare a YOLO-format sign dataset (e.g. a Roboflow export) for the shared detector.
 
-* Maps source classes to our sign classes via detector/configs/signs_map.yaml.
+* Maps source classes to our sign classes via detector/configs/signs_map.yaml (exact names, then regex rules).
 * Writes labels with global class ids: pothole classes first (0..3), then sign classes,
   so the output can be merged with the RDD output in one data.yaml.
 * Builds occluded copies of val/test (signs partly covered at given fractions) to measure
@@ -35,25 +35,37 @@ def load_yaml(p: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
-def target_classes(mode: str, smap: dict) -> tuple[list[str], list[str]]:
+def target_classes(mode: str, smap: dict, mapper: dict[str, str | None] | None = None) -> tuple[list[str], list[str]]:
     """Returns (all class names in global order, sign class names)."""
     cls = load_yaml(CONFIGS / "classes.yaml")
     pothole = list(cls["pothole_classes"])
     if mode == "grouped":
         signs = list(cls["sign_classes"])
     else:
-        signs = [normalise(n) for g in smap["groups"].values() for n in g]
+        signs = sorted({v for v in (mapper or {}).values() if v})
     return pothole + signs, signs
 
 
 def build_mapper(mode: str, smap: dict, names: list[str]) -> dict[str, str | None]:
-    """Source name (normalised) -> our sign class name, or None to drop."""
+    """Source name (normalised) -> our sign class name, or None to drop. Unmatched names are absent."""
+    import re
     m: dict[str, str | None] = {}
-    for group, members in smap.get("groups", {}).items():
+    for group, members in (smap.get("groups") or {}).items():
         for n in members:
-            m[normalise(n)] = group if mode == "grouped" else normalise(n)
-    for n in smap.get("drop", []) or []:
+            m[normalise(n)] = group
+    for n in smap.get("drop") or []:
         m[normalise(n)] = None
+    rules = [(g, re.compile(pat)) for g, pat in (smap.get("rules") or [])]
+    for raw in names:
+        n = normalise(raw).replace("-", "_")
+        if n in m:
+            continue
+        for g, rx in rules:
+            if rx.search(n):
+                m[n] = None if g == "drop" else g
+                break
+    if mode == "fine":
+        m = {k: (k if v is not None else None) for k, v in m.items()}
     return m
 
 
@@ -133,7 +145,7 @@ def main() -> int:
     mode = smap.get("mode", "grouped")
     src_names = find_source_names(a.src)
     mapper = build_mapper(mode, smap, src_names)
-    all_names, sign_names = target_classes(mode, smap)
+    all_names, sign_names = target_classes(mode, smap, mapper)
     gid = {n: i for i, n in enumerate(all_names)}
 
     unmapped = [n for n in src_names if normalise(n) not in mapper]

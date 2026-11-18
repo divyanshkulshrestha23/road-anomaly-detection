@@ -20,7 +20,7 @@ Last updated: 2026-11-18 (rev 2)
 | 14 | Sign classes | regulatory, warning, hospital, school, speed_limit. | Decided |
 | 15 | Pothole training data | RDD2022 via Kaggle; 4 classes (D00, D10, D20, D40); China drone subset excluded (aerial view); other classes dropped; background images capped at 20%; split 80/10/10 per country; India-only val/test reported separately. | Decided |
 | 17 | Android stack | Kotlin, CameraX, TensorFlow Lite (FP16 model, GPU delegate when available). Gradle root `app/`, module `rider/`, package `dtu.rider`. | Decided |
-| 18 | Sign dataset | Candidate: Roboflow "indian traffic signs detection 2" (CC BY 4.0, 37 classes). Backup: IRTSD (needs IEEE DataPort subscription). To confirm after export. | Open |
+| 18 | Sign dataset | Candidate: Roboflow "Indian Traffic SignBoards" (major-project-166na, MIT, 75 classes); the earlier 37-class candidate was removed from Roboflow. Backup: IRTSD (needs IEEE DataPort subscription). Mapping uses keyword rules so any Indian sign dataset works. To confirm after export. | Open |
 | 19 | Occlusion evaluation | Sign test set copied with 25% and 50% of each sign covered by a patch from another road image, entering from a random side. Train also gets occluded copies of 30% of sign images. Report mAP clear vs 25% vs 50%. | Decided |
 | 20 | Known limitation | Merged training: RDD images contain unlabelled signs and sign images contain unlabelled road damage, which can depress recall. Note in the report; revisit if sign recall is low. | Noted |
 | 16 | Shared detector order | Stage 1 trains pothole classes only (RDD2022 has no signs). Signs are added once a sign dataset is chosen, then the model is retrained on all classes. | Decided |

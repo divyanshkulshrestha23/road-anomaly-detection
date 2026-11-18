@@ -1,55 +1,24 @@
-# Maps source sign classes (Roboflow "indian traffic signs detection 2", 37 classes, CC BY 4.0)
-# to our sign classes. Matching is case- and punctuation-insensitive.
+# Maps source sign classes to our sign classes. Works with any Indian sign dataset:
+#   1. exact names in `groups` / `drop` are checked first (case- and punctuation-insensitive)
+#   2. otherwise the first matching regex in `rules` decides (searched in the normalised name,
+#      e.g. "speed_limit_40")
+#   3. anything still unmatched is reported as UNMAPPED and dropped
 #
 # mode: grouped -> 5 classes from classes.yaml sign_classes (decision #14)
 # mode: fine    -> keep each source class (needed if the app must show e.g. the speed value)
 mode: grouped
 
-groups:
-  speed_limit:
-    - Speed Limit 20
-    - Speed Limit 30
-    - Speed Limit 40
-    - Speed Limit 50
-    - Speed Limit 60
-    - Speed Limit 80
-  school:
-    - School Ahead
-  hospital:
-    - Hospital
-  warning:
-    - Gap in Median
-    - Men at Work
-    - Pedestrian Crossing
-    - Speed Breaker
-    - Crossroad
-    - Zigzag Road
-    - Side Road Left
-    - Side Road Right
-    - T Intersection
-    - Y Intersection
-    - Traffic Signal Ahead
-    - Roundabout
-    - Go Slow
-  regulatory:
-    - Stop
-    - Give Way
-    - No Entry
-    - No Parking
-    - No Stopping
-    - Horn Prohibited
-    - No U-turn
-    - Overtaking Prohibited
-    - Cycle Prohibited
-    - No Left Turn
-    - No Right Turn
-    - Keep Left
-    # Unclear from the name whether these are compulsory-turn (regulatory) or curve-warning signs.
-    # Check sample images after export and move them if needed.
-    - Left Turn
-    - Right Turn
-    - U-turn
+# Primary dataset: Roboflow "Indian Traffic SignBoards" (major-project-166na), MIT licence, 75 classes.
+groups: {}
+drop: []
 
-# Source classes deliberately dropped (informatory, not in our classes).
-drop:
-  - Parking
+rules:
+  # informatory signs: not in our classes
+  - [drop, "^parking|petrol_pump|restriction_ends|same_destination"]
+  - [speed_limit, "speed_limit|max_speed"]
+  - [school, "school"]
+  - [hospital, "hospital"]
+  # mandatory / prohibitory (circular signs in IRC 67)
+  - [regulatory, "prohibit|^no_|_no_|^stop$|stop_sign|give_way|compulsory|keep_left|keep_right|no_entry|pass_either_side|height_limit|width_limit|length_limit|axle_load|load_limit|one_way|u_turn$|^u_turn|left_turn$|right_turn$|^left_turn|^right_turn|go_straight|straight_ahead"]
+  # cautionary (triangular signs)
+  - [warning, "curve|bend|cross|intersection|junction|side_road|roundabout|gap_in_median|men_at_work|work|pedestr|zebra|cattle|cycle_crossing|dip|falling_rock|hump|rough_road|speed_breaker|level_crossing|loose_gravel|narrow|slippery|steep|road_widens|chevron|quay|river_bank|traffic_signal|signal_ahead|go_slow|danger|merging|bridge|zigzag|y_intersection|t_intersection|staggered"]

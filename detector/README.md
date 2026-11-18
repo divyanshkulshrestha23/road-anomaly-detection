@@ -14,11 +14,17 @@ pip install -r requirements.txt
 
 - `configs/`: dataset and class definitions (`classes.yaml` is the single source of truth for class names)
 - `rdd_prepare.py`: converts RDD2022 (VOC XML or YOLO layout) to our YOLO format and classes
-- `colab_train_pothole.ipynb`: Colab notebook for Module 1 training, evaluation and TFLite export
+- `kaggle_train_pothole.ipynb`: Kaggle notebook for Module 1 (primary)
+- `colab_train_pothole.ipynb`: Colab notebook (backup) for Module 1 training, evaluation and TFLite export
 - `train.py`: local training entry point (stub; use the Colab notebook for now)
 - `export_tflite.py`: export trained weights to TFLite (stub)
 
-## Training on Colab
+## Training on Kaggle (primary)
+
+Notebook: `detector/kaggle_train_pothole.ipynb`. Import it on Kaggle (File → Import Notebook), attach the `rdd-2022` dataset, set GPU and Internet on, then Save & Run All.
+Outputs (weights, TFLite, summary) are in the notebook version's Output tab.
+
+## Training on Colab (backup)
 
 Open: https://colab.research.google.com/github/divyanshkulshrestha23/road-anomaly-detection/blob/main/detector/colab_train_pothole.ipynb
 

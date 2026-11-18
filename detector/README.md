@@ -22,7 +22,7 @@ pip install -r requirements.txt
 
 Open: https://colab.research.google.com/github/divyanshkulshrestha23/road-anomaly-detection/blob/main/detector/colab_train_pothole.ipynb
 
-Set the runtime to T4 GPU and run all cells. You need a Kaggle API token (`kaggle.json`).
+Set the runtime to T4 GPU and run all cells. You need a Kaggle API token (store it as a Colab secret named `KAGGLE_API_TOKEN`).
 Outputs go to `MyDrive/road-anomaly/` on Google Drive.
 
 ## Status

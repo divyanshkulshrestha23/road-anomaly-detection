@@ -149,12 +149,25 @@ def main() -> int:
     ap.add_argument("--signs", type=Path, required=True, help="Output dir of signs_prepare.py")
     ap.add_argument("--rdd", type=Path, required=True, help="Output dir of rdd_prepare.py")
     ap.add_argument("--train-copies", type=int, default=2)
+    ap.add_argument("--rare-copies", type=int, default=6,
+                    help="Train composites per image for rare classes (--rare-classes)")
+    ap.add_argument("--rare-classes", nargs="*", default=["hospital", "school"])
     ap.add_argument("--occlude-fracs", type=float, nargs="*", default=[0.25, 0.5])
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--seed", type=int, default=7)
     a = ap.parse_args()
 
     out = a.signs
+    with open(out / "data_signs.yaml", "r", encoding="utf-8") as f:
+        names_by_id = {int(k): v for k, v in yaml.safe_load(f)["names"].items()}
+    rare_ids = {i for i, n in names_by_id.items() if n in set(a.rare_classes)}
+
+    def sign_class(lab: Path) -> int | None:
+        for line in lab.read_text().splitlines():
+            if line.split():
+                return int(line.split()[0])
+        return None
+
     sets: dict[str, list] = {}
     for split in ("train", "val", "test"):
         signs = list_pairs(out, split)
@@ -172,8 +185,11 @@ def main() -> int:
             jobs = []
             # Same background and seed across occlusion variants, so they differ only by occlusion.
             vr = random.Random(a.seed * 10 + {"train": 1, "val": 2, "test": 3}[split])
-            for k in range(copies):
-                for si, (simg, slab) in enumerate(signs):
+            for si, (simg, slab) in enumerate(signs):
+                n_copies = copies
+                if split == "train" and sign_class(slab) in rare_ids:
+                    n_copies = max(copies, a.rare_copies)
+                for k in range(n_copies):
                     bimg, blab = vr.choice(bgs)
                     stem = f"paste{k}__{simg.stem}"
                     jobs.append((str(simg), str(slab), str(bimg), str(blab),

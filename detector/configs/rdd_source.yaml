@@ -1,4 +1,8 @@
 # Class names of the RDD2022 Kaggle copy (aliabdelmenam/rdd-2022), in label-id order (id 0 first).
-# The dataset ships no names file, so this is filled in after checking the class-id previews.
-# Leave empty until confirmed; data prep refuses to run while it is empty.
-source_class_names: []
+# The dataset ships no names file. Mapping confirmed by eye from class-id preview grids (2026-11-18):
+#   0 = long boxes along the road            -> D00 longitudinal crack
+#   1 = wide boxes across the road           -> D10 transverse crack
+#   2 = squarish areas of broken surface     -> D20 alligator crack
+#   3 = small boxes on faded markings etc.   -> other corruption (dropped)
+#   4 = holes / broken patches               -> D40 pothole
+source_class_names: [D00, D10, D20, other_corruption, D40]

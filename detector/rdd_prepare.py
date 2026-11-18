@@ -7,7 +7,8 @@ verified yet:
 
 Keeps only the four classes in detector/configs/classes.yaml (pothole_classes).
 Other RDD classes (e.g. D43, D44, D50, repair, block crack) are dropped.
-Images with labels but no kept objects are kept as background images.
+Images with labels but no kept objects are kept as background images (capped in train).
+Uses the dataset's own train/val/test folders when present (--resplit to override).
 Images with no label file at all (e.g. the unlabelled test split) are skipped.
 
 Usage:
@@ -87,6 +88,18 @@ def map_name(raw: str, targets: set[str]) -> str | None:
     for t in targets:
         if n.rstrip("s") == t or n.replace("_", "") == t.replace("_", ""):
             return t
+    return None
+
+
+SPLIT_ALIASES = {"train": "train", "training": "train", "val": "val", "valid": "val",
+                 "validation": "val", "test": "test", "testing": "test"}
+
+
+def detect_split(path: Path, src: Path) -> str | None:
+    for part in path.relative_to(src).parts[:-1]:
+        sp = SPLIT_ALIASES.get(part.lower())
+        if sp:
+            return sp
     return None
 
 
@@ -336,7 +349,7 @@ def preview(src: Path, out: Path, per_class: int = 8, prefer: str = "India", see
 
 def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
             include: set[str] | None, exclude: set[str], max_background_frac: float,
-            class_names: list[str] | None = None) -> int:
+            class_names: list[str] | None = None, keep_split: bool = True) -> int:
     targets = load_target_classes()
     tset = set(targets)
     cid = {n: i for i, n in enumerate(targets)}
@@ -373,28 +386,36 @@ def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
             boxes = parse_yolo(lab, src_names, tset, drop)
         records.append((img, country, boxes))
 
-    # Cap background (no-object) images so they do not dominate training.
     rng = random.Random(seed)
-    pos = [r for r in records if r[2]]
-    bg = [r for r in records if not r[2]]
-    max_bg = int(len(pos) * max_background_frac / max(1e-9, 1 - max_background_frac))
-    rng.shuffle(bg)
-    bg_dropped = max(0, len(bg) - max_bg)
-    records = pos + bg[:max_bg]
+    src_split = {r[0]: detect_split(r[0], src) for r in records}
+    use_src_split = keep_split and all(src_split.values())
+    split_of: dict[Path, str] = {}
+    if use_src_split:
+        print("Using the dataset's own train/val/test split")
+        split_of = dict(src_split)
+    else:
+        if keep_split:
+            print("No complete train/val/test folders found; making a stratified split by country")
+        by_c: dict[str, list] = defaultdict(list)
+        for r in records:
+            by_c[r[1]].append(r)
+        for country, rs in by_c.items():
+            rs.sort(key=lambda r: str(r[0]))
+            rng.shuffle(rs)
+            n = len(rs)
+            n_test = int(round(n * test_frac))
+            n_val = int(round(n * val_frac))
+            for i, r in enumerate(rs):
+                split_of[r[0]] = "test" if i < n_test else ("val" if i < n_test + n_val else "train")
 
-    # Stratified split by country.
-    by_c: dict[str, list] = defaultdict(list)
-    for r in records:
-        by_c[r[1]].append(r)
-    split_of = {}
-    for country, rs in by_c.items():
-        rs.sort(key=lambda r: str(r[0]))
-        rng.shuffle(rs)
-        n = len(rs)
-        n_test = int(round(n * test_frac))
-        n_val = int(round(n * val_frac))
-        for i, r in enumerate(rs):
-            split_of[r[0]] = "test" if i < n_test else ("val" if i < n_test + n_val else "train")
+    # Cap background (no-object) images in train only, so val/test stay comparable.
+    train_pos = [r for r in records if split_of[r[0]] == "train" and r[2]]
+    train_bg = [r for r in records if split_of[r[0]] == "train" and not r[2]]
+    max_bg = int(len(train_pos) * max_background_frac / max(1e-9, 1 - max_background_frac))
+    rng.shuffle(train_bg)
+    drop_bg = {r[0] for r in train_bg[max_bg:]}
+    bg_dropped = len(drop_bg)
+    records = [r for r in records if r[0] not in drop_bg]
 
     for s in ("train", "val", "test"):
         (out / "images" / s).mkdir(parents=True, exist_ok=True)
@@ -453,6 +474,8 @@ def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
         "label_format": mode,
         "classes": targets,
         "excluded_subsets": sorted(exclude),
+        "split_source": "dataset folders" if use_src_split else f"stratified by country, seed {seed}",
+        "source_class_names": src_names,
         "images_used": len(records),
         "images_skipped_no_label": no_label,
         "background_images_dropped": bg_dropped,
@@ -485,6 +508,7 @@ def main() -> int:
     ap.add_argument("--sample", type=int, default=4000, help="Label files to sample in --inspect (0 = all)")
     ap.add_argument("--class-names", nargs="*", help="Source class names in id order, e.g. D00 D10 D20 D40")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--resplit", action="store_true", help="Ignore the dataset's train/val/test folders and re-split by country")
     ap.add_argument("--val-frac", type=float, default=0.1)
     ap.add_argument("--test-frac", type=float, default=0.1)
     ap.add_argument("--include", nargs="*", help="Only these subsets, e.g. India Japan")
@@ -500,7 +524,7 @@ def main() -> int:
         ap.error("--out is required unless --inspect")
     return prepare(a.src, a.out, a.seed, a.val_frac, a.test_frac,
                    set(a.include) if a.include else None, set(a.exclude or []),
-                   a.max_background_frac, a.class_names)
+                   a.max_background_frac, a.class_names, not a.resplit)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 name,source_url,licence,attribution_required,download_method,status,notes
 RDD2022 (Kaggle re-upload),https://www.kaggle.com/datasets/aliabdelmenam/rdd-2022,CC BY-SA 4.0,yes,kaggle CLI in Colab,to verify subsets and original release,Third-party copy; confirm it matches the original RDD2022 release and includes Indian images. ShareAlike applies to derived works, so check before distributing trained weights.
 RDD2022 (original release),https://crddc2022.sekilab.global,CC BY-SA 4.0 (confirmed via datasetninja.com/road-damage-detector),yes,reference only,confirmed,"Arya, Maeda, Ghosh, Toshniwal, Sekimoto, RDD2022: A multi-national image dataset for automatic Road Damage Detection, arXiv:2209.08538, 2022. 47,420 images, 6 countries; India 9,665 images."
-Mapillary traffic signs,TBD,TBD,TBD,TBD,not started,Check licence before use.
+Indian traffic signs detection 2 (Roboflow),https://universe.roboflow.com/tech-mahindra-altavec/indian-traffic-signs-detection-2,CC BY 4.0,yes,Roboflow export (free account),candidate - primary,"37 Indian classes incl. School Ahead, Hospital, Speed Limit 20-80. Image count not shown on page; check after export."
+IRTSD-Datasetv1 (IEEE DataPort),https://dx.doi.org/10.21227/ap4b-c439,CC BY 4.0,yes,IEEE DataPort login (subscription required),candidate - backup,"5,141 images, 37 classes, 90+ Indian cities, phone-captured. Needs an IEEE DataPort subscription (check DTU access). ~1.78 GB."
+Mapillary Traffic Sign Dataset,https://www.mapillary.com/dataset/trafficsign,academic research only,yes,Mapillary account,not chosen,Global; freely available for academic research only.
 Own Delhi road frames,local,own data,no,upload to Drive,not started,Record capture date and device.
 Recorded rides (phone sensors),local,own data,no,upload to Drive,not started,Record device model and mount position.

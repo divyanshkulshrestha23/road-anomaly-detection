@@ -20,3 +20,7 @@ app/local.properties
 # OS
 .DS_Store
 Thumbs.db
+app/rider/build/
+app/build/
+app/.idea/
+app/gradle/wrapper/gradle-wrapper.jar

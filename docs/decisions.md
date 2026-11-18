@@ -16,7 +16,7 @@ Last updated: 2026-11-18 (rev 2)
 | 10 | Licences | RDD2022: CC BY-SA 4.0, attribution required (confirmed). Still to check: Ultralytics (AGPL-3.0, to be verified) and the sign dataset. | Partly done |
 | 11 | Team split | By module (see README). | Decided |
 | 12 | Ownership | Module owners still to be assigned (on hold). | Open |
-| 13 | Training compute | Google Colab (free T4 GPU). Checkpoints and exports saved to Google Drive. | Decided |
+| 13 | Training compute | Kaggle Notebooks (free GPU; dataset attached directly, no download). Colab kept as backup; free Colab compute units were too low. | Decided |
 | 14 | Sign classes | regulatory, warning, hospital, school, speed_limit. | Decided |
 | 15 | Pothole training data | RDD2022 via Kaggle; 4 classes (D00, D10, D20, D40); China drone subset excluded (aerial view); other classes dropped; background images capped at 20%; split 80/10/10 per country; India-only val/test reported separately. | Decided |
 | 16 | Shared detector order | Stage 1 trains pothole classes only (RDD2022 has no signs). Signs are added once a sign dataset is chosen, then the model is retrained on all classes. | Decided |

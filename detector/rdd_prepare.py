@@ -68,6 +68,26 @@ COUNTRY_PATTERNS = [
 DEFAULT_EXCLUDE = {"China_Drone"}
 
 
+def read_texts(paths: list[Path], workers: int = 32, label: str = "label files") -> dict[Path, str]:
+    """Read many small text files in parallel (network storage like /kaggle/input is slow per file)."""
+    from concurrent.futures import ThreadPoolExecutor
+    import time
+    out: dict[Path, str] = {}
+    n = len(paths)
+    t0 = time.time()
+    def rd(p: Path) -> tuple[Path, str]:
+        try:
+            return p, p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return p, ""
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for i, (p, txt) in enumerate(ex.map(rd, paths, chunksize=64), 1):
+            out[p] = txt
+            if i % 5000 == 0 or i == n:
+                print(f"  read {i}/{n} {label} ({time.time() - t0:.0f}s)", flush=True)
+    return out
+
+
 def load_target_classes() -> list[str]:
     with open(CLASSES_YAML, "r", encoding="utf-8") as f:
         return list(yaml.safe_load(f)["pothole_classes"])
@@ -220,9 +240,9 @@ def parse_voc(xml_path: Path, img: Path, targets: set[str], drop: Counter) -> li
     return boxes
 
 
-def parse_yolo(txt: Path, src_names: list[str], targets: set[str], drop: Counter) -> list[tuple[str, float, float, float, float]]:
+def parse_yolo(text: str, src_names: list[str], targets: set[str], drop: Counter) -> list[tuple[str, float, float, float, float]]:
     boxes = []
-    for line in txt.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         parts = line.split()
         if len(parts) < 5:
             continue
@@ -244,8 +264,9 @@ def yolo_id_histogram(txts: dict[str, list[Path]], sample: int = 4000, seed: int
     files = [t for paths in txts.values() for t in paths]
     if sample and len(files) > sample:
         files = random.Random(seed).sample(files, sample)
+    texts = read_texts(files)
     for t in files:
-        lines = [l.split() for l in t.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
+        lines = [l.split() for l in texts[t].splitlines() if l.strip()]
         if not lines:
             empty += 1
         c = detect_country(t)
@@ -361,13 +382,25 @@ def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
               "Run --inspect and --preview, then fill detector/configs/rdd_source.yaml "
               "(or pass --class-names) in id order.", file=sys.stderr)
         return 1
-    print(f"Label format detected: {mode}")
+    print(f"Label format detected: {mode}", flush=True)
     if mode == "yolo":
         print(f"Source class names by id: {dict(enumerate(src_names))}")
 
     drop: Counter = Counter()
     records = []  # (img, country, boxes)
     no_label = 0
+    print(f"Found {len(images)} images", flush=True)
+    texts: dict[Path, str] = {}
+    if mode == "yolo":
+        wanted = []
+        for img in images:
+            c = detect_country(img)
+            if c in exclude or (include and c not in include):
+                continue
+            lab = pick_label(img, txts.get(img.stem, []))
+            if lab is not None:
+                wanted.append(lab)
+        texts = read_texts(wanted)
     for img in images:
         country = detect_country(img)
         if country in exclude or (include and country not in include):
@@ -383,7 +416,7 @@ def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
             if lab is None:
                 no_label += 1
                 continue
-            boxes = parse_yolo(lab, src_names, tset, drop)
+            boxes = parse_yolo(texts[lab], src_names, tset, drop)
         records.append((img, country, boxes))
 
     rng = random.Random(seed)
@@ -425,7 +458,10 @@ def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
     manifest_rows = []
     india_lists = defaultdict(list)
     used_names: set[str] = set()
-    for img, country, boxes in records:
+    print(f"Writing {len(records)} images/labels to {out}", flush=True)
+    for n_done, (img, country, boxes) in enumerate(records, 1):
+        if n_done % 5000 == 0:
+            print(f"  wrote {n_done}/{len(records)}", flush=True)
         s = split_of[img]
         name = f"{country}__{img.stem}"
         i = 1

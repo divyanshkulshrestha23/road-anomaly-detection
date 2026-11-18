@@ -1,6 +1,6 @@
 # Decision log
 
-Last updated: 2026-11-18
+Last updated: 2026-11-18 (rev 2)
 
 | # | Area | Decision | Status |
 |---|---|---|---|
@@ -12,7 +12,11 @@ Last updated: 2026-11-18
 | 6 | Distance ground truth | Measured road markers, with GPS speed as reference. | Decided |
 | 7 | Provisional targets | Pothole mAP@0.5 >= 0.5. Crash recall >= 0.8 with <= 1 false alarm per hour of riding. >= 15 FPS on target phone. Revise after first baseline. | Provisional |
 | 8 | Demo scope (mid-term) | Pothole module running on phone, plus sign-detector results. | Decided |
-| 9 | Deadline | Mid-term review target 29-30 Nov 2026 (to be confirmed). | Open |
-| 10 | Licences | Check Ultralytics (AGPL-3.0, to be verified), RDD2022, and Mapillary sign data before distribution. | Open |
+| 9 | Deadline | Mid-term review 29-30 Nov 2026. | Decided |
+| 10 | Licences | RDD2022: CC BY-SA 4.0, attribution required (confirmed). Still to check: Ultralytics (AGPL-3.0, to be verified) and the sign dataset. | Partly done |
 | 11 | Team split | By module (see README). | Decided |
-| 12 | Ownership | Module owners still to be assigned. | Open |
+| 12 | Ownership | Module owners still to be assigned (on hold). | Open |
+| 13 | Training compute | Google Colab (free T4 GPU). Checkpoints and exports saved to Google Drive. | Decided |
+| 14 | Sign classes | regulatory, warning, hospital, school, speed_limit. | Decided |
+| 15 | Pothole training data | RDD2022 via Kaggle; 4 classes (D00, D10, D20, D40); China drone subset excluded (aerial view); other classes dropped; background images capped at 20%; split 80/10/10 per country; India-only val/test reported separately. | Decided |
+| 16 | Shared detector order | Stage 1 trains pothole classes only (RDD2022 has no signs). Signs are added once a sign dataset is chosen, then the model is retrained on all classes. | Decided |

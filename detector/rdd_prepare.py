@@ -11,8 +11,9 @@ Images with labels but no kept objects are kept as background images.
 Images with no label file at all (e.g. the unlabelled test split) are skipped.
 
 Usage:
-  python detector/rdd_prepare.py --src /content/rdd_raw --inspect
-  python detector/rdd_prepare.py --src /content/rdd_raw --out /content/rdd_yolo
+  python detector/rdd_prepare.py --src RAW --inspect
+  python detector/rdd_prepare.py --src RAW --preview previews/      # identify class ids by eye
+  python detector/rdd_prepare.py --src RAW --out OUT --class-names D00 D10 D20 D40
 """
 
 from __future__ import annotations
@@ -87,7 +88,11 @@ def detect_country(path: Path) -> str:
     return "Unknown"
 
 
+AUX_NAMES = {"classes.txt", "classes.names", "obj.names", "labels.txt", "readme.txt", "readme.md", "notes.txt"}
+
+
 def scan(src: Path) -> tuple[list[Path], dict[str, list[Path]], dict[str, list[Path]], list[Path]]:
+    """Returns images, xml labels by stem, txt labels by stem, and YAML/aux files."""
     images: list[Path] = []
     xml_by_stem: dict[str, list[Path]] = defaultdict(list)
     txt_by_stem: dict[str, list[Path]] = defaultdict(list)
@@ -100,7 +105,9 @@ def scan(src: Path) -> tuple[list[Path], dict[str, list[Path]], dict[str, list[P
                 images.append(p)
             elif ext == ".xml":
                 xml_by_stem[p.stem].append(p)
-            elif ext == ".txt" and p.name not in {"classes.txt", "README.txt"}:
+            elif p.name.lower() in AUX_NAMES:
+                yamls.append(p)
+            elif ext == ".txt":
                 txt_by_stem[p.stem].append(p)
             elif ext in {".yaml", ".yml"}:
                 yamls.append(p)
@@ -126,8 +133,12 @@ def pick_label(img: Path, candidates: list[Path]) -> Path | None:
     return max(candidates, key=score)
 
 
-def yolo_source_names(yamls: list[Path]) -> list[str] | None:
+def yolo_source_names(yamls: list[Path], override: list[str] | None = None) -> list[str] | None:
+    if override:
+        return override
     for y in yamls:
+        if y.suffix.lower() not in {".yaml", ".yml"}:
+            continue
         try:
             with open(y, "r", encoding="utf-8") as f:
                 d = yaml.safe_load(f)
@@ -139,6 +150,11 @@ def yolo_source_names(yamls: list[Path]) -> list[str] | None:
                 return [names[k] for k in sorted(names, key=int)]
             if isinstance(names, list):
                 return [str(n) for n in names]
+    for y in yamls:
+        if y.name.lower() in {"classes.txt", "classes.names", "obj.names"}:
+            names = [l.strip() for l in y.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
+            if names:
+                return names
     return None
 
 
@@ -195,17 +211,49 @@ def parse_yolo(txt: Path, src_names: list[str], targets: set[str], drop: Counter
     return boxes
 
 
-def inspect(src: Path) -> int:
+def yolo_id_histogram(txts: dict[str, list[Path]]) -> tuple[Counter, dict[str, Counter], int]:
+    total: Counter = Counter()
+    by_country: dict[str, Counter] = defaultdict(Counter)
+    empty = 0
+    for paths in txts.values():
+        for t in paths:
+            lines = [l.split() for l in t.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
+            if not lines:
+                empty += 1
+            c = detect_country(t)
+            for parts in lines:
+                cid = parts[0]
+                total[cid] += 1
+                by_country[c][cid] += 1
+    return total, by_country, empty
+
+
+def inspect(src: Path, class_names: list[str] | None = None) -> int:
     images, xmls, txts, yamls = scan(src)
     print(f"Source: {src}")
-    print(f"Images: {len(images)}   XML files: {sum(map(len, xmls.values()))}   TXT files: {sum(map(len, txts.values()))}   YAML: {len(yamls)}")
+    print(f"Images: {len(images)}   XML files: {sum(map(len, xmls.values()))}   TXT files: {sum(map(len, txts.values()))}   YAML/name files: {len(yamls)}")
     by_country = Counter(detect_country(p) for p in images)
     print("Images by country/subset:")
     for k, v in sorted(by_country.items()):
         print(f"  {k:16s} {v}")
-    names = yolo_source_names(yamls)
-    if names:
-        print(f"YOLO class names found in YAML: {names}")
+    print("Folder layout (depth 3, image counts):")
+    depth = Counter()
+    for p in images:
+        rel = p.relative_to(src).parts[:-1][:3]
+        depth["/".join(rel)] += 1
+    for k, v in sorted(depth.items())[:40]:
+        print(f"  {k:50s} {v}")
+    for y in yamls:
+        print(f"--- {y.relative_to(src)} ---")
+        print(y.read_text(encoding="utf-8", errors="ignore")[:800])
+    names = yolo_source_names(yamls, class_names)
+    print(f"Class names found: {names}")
+    if txts:
+        total, per_c, empty = yolo_id_histogram(txts)
+        print(f"YOLO class-id counts (all labels): {dict(sorted(total.items(), key=lambda kv: float(kv[0])))}")
+        print(f"Empty label files (background images): {empty}")
+        for c, cnt in sorted(per_c.items()):
+            print(f"  {c:16s} {dict(sorted(cnt.items(), key=lambda kv: float(kv[0])))}")
     raw_counts: Counter = Counter()
     for paths in list(xmls.values())[:3000]:
         for obj in ET.parse(paths[0]).getroot().findall("object"):
@@ -214,23 +262,69 @@ def inspect(src: Path) -> int:
         print("XML class names (sample of up to 3000 files):")
         for k, v in raw_counts.most_common():
             print(f"  {k:20s} {v}")
-    top = sorted({str(p.relative_to(src)).split(os.sep)[0] for p in images})[:20]
-    print(f"Top-level folders containing images: {top}")
+    return 0
+
+
+def preview(src: Path, out: Path, per_class: int = 8, prefer: str = "India", seed: int = 0) -> int:
+    """Save one image grid per YOLO class id, with that id's boxes drawn, to identify classes by eye."""
+    from PIL import Image, ImageDraw
+    images, _xmls, txts, _y = scan(src)
+    img_by_stem = {}
+    for p in images:
+        img_by_stem.setdefault(p.stem, []).append(p)
+    hits: dict[str, list[tuple[Path, list[list[float]]]]] = defaultdict(list)
+    rng = random.Random(seed)
+    stems = list(txts.keys())
+    rng.shuffle(stems)
+    stems.sort(key=lambda st: 0 if prefer.lower() in st.lower() else 1)
+    for st in stems:
+        lab = txts[st][0]
+        rows = [l.split() for l in lab.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
+        ids = {r[0] for r in rows}
+        imgs = img_by_stem.get(st)
+        if not imgs:
+            continue
+        for cid in ids:
+            if len(hits[cid]) < per_class:
+                hits[cid].append((pick_label(lab, imgs), [list(map(float, r[1:5])) for r in rows if r[0] == cid]))
+    out.mkdir(parents=True, exist_ok=True)
+    tile = 320
+    for cid, items in sorted(hits.items(), key=lambda kv: float(kv[0])):
+        cols = 4
+        rows_n = (len(items) + cols - 1) // cols
+        grid = Image.new("RGB", (cols * tile, rows_n * tile), "white")
+        for i, (img, boxes) in enumerate(items):
+            with Image.open(img) as im:
+                im = im.convert("RGB")
+                w, h = im.size
+                d = ImageDraw.Draw(im)
+                lw = max(3, w // 150)
+                for cx, cy, bw, bh in boxes:
+                    d.rectangle([(cx - bw / 2) * w, (cy - bh / 2) * h, (cx + bw / 2) * w, (cy + bh / 2) * h], outline=(255, 0, 0), width=lw)
+                im.thumbnail((tile, tile))
+                grid.paste(im, ((i % cols) * tile, (i // cols) * tile))
+        path = out / f"class_id_{cid}.jpg"
+        grid.save(path, quality=85)
+        print(f"class id {cid}: {len(items)} examples -> {path}")
     return 0
 
 
 def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
-            include: set[str] | None, exclude: set[str], max_background_frac: float) -> int:
+            include: set[str] | None, exclude: set[str], max_background_frac: float,
+            class_names: list[str] | None = None) -> int:
     targets = load_target_classes()
     tset = set(targets)
     cid = {n: i for i, n in enumerate(targets)}
     images, xmls, txts, yamls = scan(src)
-    src_names = yolo_source_names(yamls)
+    src_names = yolo_source_names(yamls, class_names)
     mode = "xml" if xmls else ("yolo" if txts and src_names else None)
     if mode is None:
-        print("ERROR: found neither VOC XML labels nor YOLO labels with a names YAML. Run --inspect.", file=sys.stderr)
+        print("ERROR: found neither VOC XML labels nor YOLO labels with class names. "
+              "Run --inspect and --preview, then pass --class-names in id order.", file=sys.stderr)
         return 1
     print(f"Label format detected: {mode}")
+    if mode == "yolo":
+        print(f"Source class names by id: {dict(enumerate(src_names))}")
 
     drop: Counter = Counter()
     records = []  # (img, country, boxes)
@@ -361,6 +455,8 @@ def main() -> int:
     ap.add_argument("--src", type=Path, required=True)
     ap.add_argument("--out", type=Path)
     ap.add_argument("--inspect", action="store_true")
+    ap.add_argument("--preview", type=Path, help="Write one image grid per class id to this folder")
+    ap.add_argument("--class-names", nargs="*", help="Source class names in id order, e.g. D00 D10 D20 D40")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--val-frac", type=float, default=0.1)
     ap.add_argument("--test-frac", type=float, default=0.1)
@@ -370,12 +466,14 @@ def main() -> int:
                     help="Max share of no-object images in the final set")
     a = ap.parse_args()
     if a.inspect:
-        return inspect(a.src)
+        return inspect(a.src, a.class_names)
+    if a.preview:
+        return preview(a.src, a.preview)
     if a.out is None:
         ap.error("--out is required unless --inspect")
     return prepare(a.src, a.out, a.seed, a.val_frac, a.test_frac,
                    set(a.include) if a.include else None, set(a.exclude or []),
-                   a.max_background_frac)
+                   a.max_background_frac, a.class_names)
 
 
 if __name__ == "__main__":

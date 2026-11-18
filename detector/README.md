@@ -16,6 +16,8 @@ pip install -r requirements.txt
 - `rdd_prepare.py`: converts RDD2022 (VOC XML or YOLO layout) to our YOLO format and classes
 - `kaggle_train_pothole.ipynb`: Kaggle notebook for Module 1, potholes only (first baseline)
 - `signs_prepare.py`: converts the sign dataset to our classes, builds 25%/50% occluded test sets, writes the combined potholes+signs config
+- `signs_paste.py`: pastes sign crops into road scenes at realistic sizes (copy-paste augmentation) and builds realistic-size clear/occluded test sets
+- `prepare_shared.sh`: runs all three data steps for the shared detector
 - `kaggle_train_shared.ipynb`: Kaggle notebook for the shared potholes + signs detector, with clear vs occluded evaluation
 - `configs/signs_map.yaml`: source sign class -> our sign group
 - `colab_train_pothole.ipynb`: Colab notebook (backup) for Module 1 training, evaluation and TFLite export

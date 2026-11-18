@@ -32,6 +32,16 @@ from pathlib import Path
 import yaml
 
 CLASSES_YAML = Path(__file__).parent / "configs" / "classes.yaml"
+SOURCE_YAML = Path(__file__).parent / "configs" / "rdd_source.yaml"
+
+
+def config_source_names() -> list[str] | None:
+    if not SOURCE_YAML.exists():
+        return None
+    with open(SOURCE_YAML, "r", encoding="utf-8") as f:
+        d = yaml.safe_load(f) or {}
+    names = d.get("source_class_names") or []
+    return [str(n) for n in names] or None
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
 
 # RDD2022 class codes -> our class names.
@@ -136,6 +146,9 @@ def pick_label(img: Path, candidates: list[Path]) -> Path | None:
 def yolo_source_names(yamls: list[Path], override: list[str] | None = None) -> list[str] | None:
     if override:
         return override
+    cfg = config_source_names()
+    if cfg:
+        return cfg
     for y in yamls:
         if y.suffix.lower() not in {".yaml", ".yml"}:
             continue
@@ -320,7 +333,8 @@ def prepare(src: Path, out: Path, seed: int, val_frac: float, test_frac: float,
     mode = "xml" if xmls else ("yolo" if txts and src_names else None)
     if mode is None:
         print("ERROR: found neither VOC XML labels nor YOLO labels with class names. "
-              "Run --inspect and --preview, then pass --class-names in id order.", file=sys.stderr)
+              "Run --inspect and --preview, then fill detector/configs/rdd_source.yaml "
+              "(or pass --class-names) in id order.", file=sys.stderr)
         return 1
     print(f"Label format detected: {mode}")
     if mode == "yolo":

@@ -1,0 +1,6 @@
+name,source_url,licence,attribution_required,download_method,status,notes
+RDD2022 (Kaggle re-upload),https://www.kaggle.com/datasets/aliabdelmenam/rdd-2022,CC BY-SA 4.0,yes,kaggle CLI in Colab,to verify subsets and original release,Third-party copy; confirm it matches the original RDD2022 release and includes Indian images. ShareAlike applies to derived works, so check before distributing trained weights.
+RDD2022 (original release),TBD - add the original authors' link,TBD,yes,TBD,to confirm,Cite in the report. Confirm the Kaggle copy matches this.
+Mapillary traffic signs,TBD,TBD,TBD,TBD,not started,Check licence before use.
+Own Delhi road frames,local,own data,no,upload to Drive,not started,Record capture date and device.
+Recorded rides (phone sensors),local,own data,no,upload to Drive,not started,Record device model and mount position.

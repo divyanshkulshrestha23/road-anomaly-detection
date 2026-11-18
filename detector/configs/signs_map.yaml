@@ -19,6 +19,6 @@ rules:
   - [school, "school"]
   - [hospital, "hospital"]
   # mandatory / prohibitory (circular signs in IRC 67)
-  - [regulatory, "prohibit|^no_|_no_|^stop$|stop_sign|give_way|compulsory|keep_left|keep_right|no_entry|pass_either_side|height_limit|width_limit|length_limit|axle_load|load_limit|one_way|u_turn$|^u_turn|left_turn$|right_turn$|^left_turn|^right_turn|go_straight|straight_ahead"]
+  - [regulatory, "prohibit|^no_|_no_|^stop$|stop_sign|give_way|compuls[ao]ry|keep_left|keep_right|no_entry|pass_either_side|height_limit|width_limit|length_limit|axle_load|load_limit|one_way|u_turn$|^u_turn|left_turn$|right_turn$|^left_turn|^right_turn|go_straight|straight_ahead"]
   # cautionary (triangular signs)
   - [warning, "curve|bend|cross|intersection|junction|side_road|roundabout|gap_in_median|men_at_work|work|pedestr|zebra|cattle|cycle_crossing|dip|falling_rock|hump|rough_road|speed_breaker|level_crossing|loose_gravel|narrow|slippery|steep|road_widens|chevron|quay|river_bank|traffic_signal|signal_ahead|go_slow|danger|merging|bridge|zigzag|y_intersection|t_intersection|staggered"]

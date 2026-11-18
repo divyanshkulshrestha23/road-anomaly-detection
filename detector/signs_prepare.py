@@ -156,11 +156,25 @@ def main() -> int:
         print(f"WARNING: source classes not in signs_map.yaml (will be dropped): {unmapped}")
     texts = read_texts([l for _i, l, _s in pairs])
     src_counts: Counter = Counter()
+    box_areas: list[float] = []
+    per_image: list[int] = []
     for _i, lab, _s in pairs:
+        n_img = 0
         for line in texts[lab].splitlines():
-            if line.strip():
-                c = int(float(line.split()[0]))
+            parts = line.split()
+            if len(parts) >= 5:
+                c = int(float(parts[0]))
                 src_counts[src_names[c] if c < len(src_names) else f"<id {c}>"] += 1
+                box_areas.append(float(parts[3]) * float(parts[4]))
+                n_img += 1
+        per_image.append(n_img)
+    if box_areas:
+        import statistics
+        qs = statistics.quantiles(box_areas, n=10)
+        small = sum(a < 0.01 for a in box_areas) / len(box_areas)
+        print(f"Boxes: {len(box_areas)}  per image: mean {sum(per_image) / len(per_image):.2f}")
+        print(f"Box area as share of image: 10th pct {qs[0]:.3f}, median {statistics.median(box_areas):.3f}, 90th pct {qs[-1]:.3f}")
+        print(f"Small boxes (<1% of image, typical of a sign seen from a moving vehicle): {small:.0%}")
     print("Boxes per source class:")
     for k, v in src_counts.most_common():
         print(f"  {k:28s} {v:6d} -> {mapper.get(normalise(k), 'UNMAPPED')}")

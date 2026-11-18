@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Data and weights (not in git)
+data/raw/
+data/recordings/
+*.pt
+*.tflite
+*.onnx
+
+# Android
+app/.gradle/
+app/build/
+app/local.properties
+*.iml
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

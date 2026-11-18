@@ -1,0 +1,7 @@
+# Provisional. Versions to be pinned after the first benchmark.
+ultralytics
+numpy
+pyyaml
+opencv-python
+pandas
+matplotlib

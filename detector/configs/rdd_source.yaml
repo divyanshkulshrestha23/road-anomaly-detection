@@ -1,0 +1,4 @@
+# Class names of the RDD2022 Kaggle copy (aliabdelmenam/rdd-2022), in label-id order (id 0 first).
+# The dataset ships no names file, so this is filled in after checking the class-id previews.
+# Leave empty until confirmed; data prep refuses to run while it is empty.
+source_class_names: []

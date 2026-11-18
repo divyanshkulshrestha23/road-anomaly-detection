@@ -14,7 +14,10 @@ pip install -r requirements.txt
 
 - `configs/`: dataset and class definitions (`classes.yaml` is the single source of truth for class names)
 - `rdd_prepare.py`: converts RDD2022 (VOC XML or YOLO layout) to our YOLO format and classes
-- `kaggle_train_pothole.ipynb`: Kaggle notebook for Module 1 (primary)
+- `kaggle_train_pothole.ipynb`: Kaggle notebook for Module 1, potholes only (first baseline)
+- `signs_prepare.py`: converts the sign dataset to our classes, builds 25%/50% occluded test sets, writes the combined potholes+signs config
+- `kaggle_train_shared.ipynb`: Kaggle notebook for the shared potholes + signs detector, with clear vs occluded evaluation
+- `configs/signs_map.yaml`: source sign class -> our sign group
 - `colab_train_pothole.ipynb`: Colab notebook (backup) for Module 1 training, evaluation and TFLite export
 - `train.py`: local training entry point (stub; use the Colab notebook for now)
 - `export_tflite.py`: export trained weights to TFLite (stub)

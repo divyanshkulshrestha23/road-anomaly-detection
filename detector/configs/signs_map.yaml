@@ -1,0 +1,55 @@
+# Maps source sign classes (Roboflow "indian traffic signs detection 2", 37 classes, CC BY 4.0)
+# to our sign classes. Matching is case- and punctuation-insensitive.
+#
+# mode: grouped -> 5 classes from classes.yaml sign_classes (decision #14)
+# mode: fine    -> keep each source class (needed if the app must show e.g. the speed value)
+mode: grouped
+
+groups:
+  speed_limit:
+    - Speed Limit 20
+    - Speed Limit 30
+    - Speed Limit 40
+    - Speed Limit 50
+    - Speed Limit 60
+    - Speed Limit 80
+  school:
+    - School Ahead
+  hospital:
+    - Hospital
+  warning:
+    - Gap in Median
+    - Men at Work
+    - Pedestrian Crossing
+    - Speed Breaker
+    - Crossroad
+    - Zigzag Road
+    - Side Road Left
+    - Side Road Right
+    - T Intersection
+    - Y Intersection
+    - Traffic Signal Ahead
+    - Roundabout
+    - Go Slow
+  regulatory:
+    - Stop
+    - Give Way
+    - No Entry
+    - No Parking
+    - No Stopping
+    - Horn Prohibited
+    - No U-turn
+    - Overtaking Prohibited
+    - Cycle Prohibited
+    - No Left Turn
+    - No Right Turn
+    - Keep Left
+    # Unclear from the name whether these are compulsory-turn (regulatory) or curve-warning signs.
+    # Check sample images after export and move them if needed.
+    - Left Turn
+    - Right Turn
+    - U-turn
+
+# Source classes deliberately dropped (informatory, not in our classes).
+drop:
+  - Parking

@@ -1,0 +1,22 @@
+# Single source of truth for detector classes.
+# Provisional: pothole classes come from the mid-term slides; sign classes to be finalised after dataset audit.
+
+pothole_classes:
+  - pothole
+  - longitudinal_crack
+  - transverse_crack
+  - alligator_crack
+
+sign_classes:
+  # TODO: finalise against RDD2022 / Mapillary / custom annotations
+  - regulatory
+  - warning
+  - hospital
+  - school
+  - speed_limit
+
+vehicle_classes:
+  - car
+  - bike
+  - bus
+  - truck

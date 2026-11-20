@@ -8,7 +8,6 @@ import android.graphics.RectF
 import android.util.Log
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.gpu.GpuDelegate
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -21,10 +20,11 @@ import kotlin.math.min
 /**
  * Runs a YOLO model exported to TFLite by Ultralytics.
  *
- * Expects a float32 input of shape [1, H, W, 3] with values in 0..1 (the FP16 export keeps a
- * float32 input). Output is [1, 4 + numClasses, N] or [1, N, 4 + numClasses], with boxes as
- * centre-x, centre-y, width, height. Boxes may be normalised (0..1) or in input pixels; both are
- * handled. Verify the output layout of your export with a Netron or Python check if results look wrong.
+ * Expects a float32 input in 0..1, either channels-first [1, 3, H, W] (current Ultralytics LiteRT
+ * export) or channels-last [1, H, W, 3] (older TFLite exports); the layout is read from the model.
+ * Output is [1, 4 + numClasses, N] or [1, N, 4 + numClasses], with boxes as centre-x, centre-y,
+ * width, height, normalised (0..1) or in input pixels; both are handled.
+ * detector/export_tflite.py writes model_info.json with the shapes of each export.
  */
 class YoloTfliteDetector(
     context: Context,
@@ -42,7 +42,9 @@ class YoloTfliteDetector(
     private val interpreter: Interpreter
     val inputW: Int
     val inputH: Int
+    private val channelsFirstInput: Boolean
     private val inputBuffer: ByteBuffer
+    private val inputFloats: FloatArray
     private val outShape: IntArray
     private val output: Array<Array<FloatArray>>
     var usingGpu = false
@@ -53,30 +55,37 @@ class YoloTfliteDetector(
         val opts = Interpreter.Options().apply { setNumThreads(4) }
         if (useGpu) {
             try {
-                val compat = CompatibilityList()
-                if (compat.isDelegateSupportedOnThisDevice) {
-                    gpuDelegate = GpuDelegate(compat.bestOptionsForThisDevice)
-                    opts.addDelegate(gpuDelegate)
-                    usingGpu = true
-                }
+                gpuDelegate = GpuDelegate()
+                opts.addDelegate(gpuDelegate)
+                usingGpu = true
             } catch (t: Throwable) {
                 Log.w(TAG, "GPU delegate unavailable, using CPU", t)
+                gpuDelegate = null
             }
         }
-        interpreter = Interpreter(model, opts)
+        interpreter = try {
+            Interpreter(model, opts)
+        } catch (t: Throwable) {
+            // Some GPUs reject some ops at load time: retry on CPU.
+            Log.w(TAG, "Interpreter failed with GPU delegate, retrying on CPU", t)
+            gpuDelegate?.close(); gpuDelegate = null; usingGpu = false
+            Interpreter(model, Interpreter.Options().apply { setNumThreads(4) })
+        }
 
         val inT = interpreter.getInputTensor(0)
         require(inT.dataType() == DataType.FLOAT32) {
-            "Expected float32 input; use the FP16 export (INT8 input models need quantised input handling)"
+            "Expected float32 input; use the float export (full-INT8 models need quantised input handling)"
         }
-        val inShape = inT.shape() // [1, H, W, 3]
-        inputH = inShape[1]
-        inputW = inShape[2]
+        val inShape = inT.shape()
+        channelsFirstInput = inShape[1] == 3
+        if (channelsFirstInput) { inputH = inShape[2]; inputW = inShape[3] }   // [1, 3, H, W]
+        else { inputH = inShape[1]; inputW = inShape[2] }                      // [1, H, W, 3]
         inputBuffer = ByteBuffer.allocateDirect(4 * inputW * inputH * 3).order(ByteOrder.nativeOrder())
+        inputFloats = FloatArray(3 * inputW * inputH)
 
         outShape = interpreter.getOutputTensor(0).shape()
         output = Array(outShape[0]) { Array(outShape[1]) { FloatArray(outShape[2]) } }
-        Log.i(TAG, "Model in=${inShape.contentToString()} out=${outShape.contentToString()} gpu=$usingGpu labels=${labels.size}")
+        Log.i(TAG, "Model in=${inShape.contentToString()} (${if (channelsFirstInput) "NCHW" else "NHWC"}) out=${outShape.contentToString()} gpu=$usingGpu labels=${labels.size}")
     }
 
     private var pixelBuf = IntArray(0)
@@ -95,14 +104,29 @@ class YoloTfliteDetector(
             drawBitmap(Bitmap.createScaledBitmap(bitmap, nw, nh, true), padX, padY, null)
         }
 
-        if (pixelBuf.size != inputW * inputH) pixelBuf = IntArray(inputW * inputH)
+        val plane = inputW * inputH
+        if (pixelBuf.size != plane) pixelBuf = IntArray(plane)
         boxed.getPixels(pixelBuf, 0, inputW, 0, 0, inputW, inputH)
-        inputBuffer.rewind()
-        for (p in pixelBuf) {
-            inputBuffer.putFloat(((p shr 16) and 0xFF) / 255f)
-            inputBuffer.putFloat(((p shr 8) and 0xFF) / 255f)
-            inputBuffer.putFloat((p and 0xFF) / 255f)
+        val f = inputFloats
+        if (channelsFirstInput) {
+            // Planar RGB: all R, then all G, then all B.
+            for (i in 0 until plane) {
+                val p = pixelBuf[i]
+                f[i] = ((p shr 16) and 0xFF) / 255f
+                f[plane + i] = ((p shr 8) and 0xFF) / 255f
+                f[2 * plane + i] = (p and 0xFF) / 255f
+            }
+        } else {
+            // Interleaved RGB per pixel.
+            for (i in 0 until plane) {
+                val p = pixelBuf[i]
+                f[3 * i] = ((p shr 16) and 0xFF) / 255f
+                f[3 * i + 1] = ((p shr 8) and 0xFF) / 255f
+                f[3 * i + 2] = (p and 0xFF) / 255f
+            }
         }
+        inputBuffer.rewind()
+        inputBuffer.asFloatBuffer().put(f)
         inputBuffer.rewind()
         interpreter.run(inputBuffer, output)
 

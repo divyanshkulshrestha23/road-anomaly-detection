@@ -1,0 +1,69 @@
+{
+  "source_weights": "best.pt",
+  "imgsz": 640,
+  "classes": [
+    "pothole",
+    "longitudinal_crack",
+    "transverse_crack",
+    "alligator_crack"
+  ],
+  "float_file": "best.tflite",
+  "float_size_mb": 10.69,
+  "float": {
+    "inputs": [
+      {
+        "shape": [
+          1,
+          3,
+          640,
+          640
+        ],
+        "dtype": "float32"
+      }
+    ],
+    "outputs": [
+      {
+        "shape": [
+          1,
+          8,
+          8400
+        ],
+        "dtype": "float32"
+      }
+    ],
+    "cpu_invoke_ms_on_this_machine": 92.6,
+    "output_value_range": [
+      3.142360815999723e-10,
+      1.0155318975448608
+    ]
+  },
+  "w8a32_size_mb": 3.02,
+  "w8a32": {
+    "inputs": [
+      {
+        "shape": [
+          1,
+          3,
+          640,
+          640
+        ],
+        "dtype": "float32"
+      }
+    ],
+    "outputs": [
+      {
+        "shape": [
+          1,
+          8,
+          8400
+        ],
+        "dtype": "float32"
+      }
+    ],
+    "cpu_invoke_ms_on_this_machine": 56.8,
+    "output_value_range": [
+      2.4999005643344674e-10,
+      1.019492506980896
+    ]
+  }
+}

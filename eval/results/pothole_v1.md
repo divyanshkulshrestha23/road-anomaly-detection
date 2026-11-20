@@ -31,8 +31,12 @@ Per-class mAP@0.5:0.95, test:
 - India transverse cracks are almost never detected (0.005). Instance counts per class on the
   India test set were not logged; check them before drawing conclusions (likely very few).
 - Validation mAP@0.5 plateaued at ~0.54 from about epoch 90; more epochs alone will not help much.
-- The INT8 TFLite export ran out of memory after training (static calibration); FP16 export is
-  done separately with `detector/export_tflite.py`.
+- The INT8 TFLite export ran out of memory after training (static calibration). Ultralytics
+  8.4.x replaced `tflite` with `litert` and no longer offers FP16, so the app model is FP32:
+  `detector.tflite`, 10.7 MB, input [1, 3, 640, 640], output [1, 8, 8400], boxes normalised.
+  Its outputs match PyTorch exactly on a test input. A dynamic-INT8 (w8a32) version is 3.0 MB but
+  some box coordinates differ by up to 10% of the image, so it is not used.
+  See `pothole_v1_model_info.json`.
 
 ## Ideas for the next run
 

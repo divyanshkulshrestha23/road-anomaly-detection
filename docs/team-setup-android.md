@@ -11,9 +11,9 @@ Rider Assist runs on an Android phone mounted on a two-wheeler. Everything runs 
 | Part | Status |
 |---|---|
 | **Module 1: Potholes and cracks** | Model trained (RDD2022, 138 epochs). Test mAP@0.5 = 0.555 overall, 0.364 on Indian roads. Draws boxes on the camera view; beeps "POTHOLE AHEAD" when a pothole is in the rider's path in 2 of the last 3 frames. |
-| **Module 2: Road signs** | Model training on Kaggle now (potholes + signs together, with partly hidden signs). Not in the app yet. |
+| **Module 2: Road signs** | Model training on Kaggle now (potholes + signs together, with partly hidden signs). Display code is in the app (green panel, removed once you pass the sign); it activates when the new model is added. |
 | **Module 3: Vehicle distance** | Done in code. Detects cars, motorcycles, buses, trucks and bicycles, estimates distance and time-to-collision, warns "VEHICLE AHEAD". **Not calibrated yet**, so distances are rough. |
-| **Module 4: Accident detection** | Crash rule in code (tilt + speed drop + stillness, then a cancel countdown). SMS sending not wired yet. |
+| **Module 4: Accident detection** | Crash rule in code (tilt + speed drop + stillness, then a 20 s cancel countdown), then an automatic SMS with a map link. Set the number with the **SOS contact** button. |
 | **Recording** | Record button saves IMU, GPS, detections and vehicle tracks to CSV, for tuning and the report. |
 | **Snap** | Saves the exact frame the app sees (used for distance calibration). |
 
@@ -25,7 +25,7 @@ The app has **not been tested on a phone yet**. The first goal is to get it buil
 2. Distance calibration photos with the Snap button (Module 3).
 3. Test rides with recording on (Module 4 tuning, sensor rate).
 4. Put the signs model into the app when Kaggle training finishes; show sign labels until the rider passes them.
-5. SMS alert after the crash countdown.
+5. Test the SOS SMS (SOS contact → Send test SMS) and tune the crash rule on recordings.
 6. Measure FPS on the phone with all models running.
 7. Update slides with results; check references and accident statistics.
 8. 27-28 Nov: freeze features, rehearse the demo.
@@ -97,6 +97,7 @@ Go in this order. Note what you see at each step.
 - "No road model" / "No vehicle model" means the files in step 5 are missing.
 - Tap **Snap**: should show "Saved snap_...jpg".
 - Tap **Start recording**, wait 30 s, **Stop**: should show where it saved.
+- Tap **SOS contact**, enter your own number, tap **Send test SMS**, and allow SMS permission. You should receive a "TEST from Rider Assist" SMS with a map link.
 
 **Step 2: Indoor check (5 min)**
 - Point the phone at a **pothole photo** on a laptop screen: expect a red "pothole" box.

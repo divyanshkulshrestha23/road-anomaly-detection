@@ -25,3 +25,17 @@ Results go in `results/` as CSV, one file per run.
    ```
    It prints the per-photo error (leave-one-out) and writes `distance_calib.json`; copy it to
    `app/rider/src/main/assets/`. The CSV next to it is the distance-error table for the report.
+
+## Ride analysis (Module 4 tuning, sensor rates, FPS)
+
+Copy a ride folder off the phone (`Android/data/dtu.rider/files/recordings/ride_<time>/`), then:
+```
+python eval/analyze_ride.py ride_<time>/
+```
+Writes `report.md` and `ride_plot.png` into the folder: real IMU rate and gaps, GPS fix rate,
+detector FPS and inference time, vehicle tracks, and a replay of the crash rule listing every
+impact above 2 g with which conditions (tilt, speed drop, stillness) held. Try other thresholds
+with e.g. `--impact-g 2.5 --tilt-deg 60`. The rule is a Python port of
+`app/.../accident/CrashDetector.kt`; keep the two in sync.
+
+Rides recorded before 20 Nov (no `t_wall_ms` column) get all sections except the crash replay.

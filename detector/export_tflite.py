@@ -1,8 +1,11 @@
 """Export trained YOLO weights to TFLite for the Android app, and describe the result.
 
-Does FP16 only by default: it keeps a float32 input, which is what the app expects, and avoids
-the INT8 calibration step that ran out of memory on Kaggle. INT8 is optional (--int8), with a
-small calibration fraction.
+Exports FP32 by default: float32 input/output, which is what the app expects, works with the
+Android GPU delegate, and needs no INT8 calibration (that step ran out of memory on Kaggle).
+Recent Ultralytics (>= 8.4.83) replaced format='tflite' with 'litert' and dropped FP16; on older
+versions the script falls back to format='tflite', half=True.
+Optional: --dynamic-int8 also writes a smaller model (INT8 weights, float activations, no
+calibration) for CPU-only phones; --int8 tries full INT8 with a small calibration fraction.
 
 Writes to --out:
   detector.tflite   (copy into app/rider/src/main/assets/)
@@ -59,6 +62,7 @@ def main() -> int:
     ap.add_argument("--weights", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--imgsz", type=int, default=640)
+    ap.add_argument("--dynamic-int8", action="store_true", help="Also export INT8-weight / float-activation model")
     ap.add_argument("--int8", action="store_true", help="Also try an INT8 export (needs --data)")
     ap.add_argument("--data", type=Path, help="data.yaml for INT8 calibration")
     ap.add_argument("--fraction", type=float, default=0.05, help="Share of the dataset used for INT8 calibration")
@@ -71,28 +75,48 @@ def main() -> int:
     (a.out / "labels.txt").write_text("\n".join(names) + "\n", encoding="utf-8")
     print(f"Classes ({len(names)}): {names}", flush=True)
 
-    before = set(glob.glob(str(a.weights.parent / "**" / "*.tflite"), recursive=True))
-    print("Exporting FP16 TFLite...", flush=True)
-    res = model.export(format="tflite", imgsz=a.imgsz, half=True)
-    print(f"Export returned: {res}", flush=True)
-    found = sorted(set(glob.glob(str(a.weights.parent / "**" / "*.tflite"), recursive=True)) - before)
-    if res and str(res).endswith(".tflite") and os.path.exists(str(res)):
-        found = [str(res)] + [f for f in found if f != str(res)]
-    if not found:
-        found = sorted(glob.glob(str(a.weights.parent / "**" / "*.tflite"), recursive=True))
-    if not found:
+    def run_export(**kw):
+        before = set(glob.glob(str(a.weights.parent / "**" / "*.tflite"), recursive=True))
+        res = model.export(imgsz=a.imgsz, **kw)
+        print(f"Export returned: {res}", flush=True)
+        if res and str(res).endswith(".tflite") and os.path.exists(str(res)):
+            return Path(str(res))
+        new = sorted(set(glob.glob(str(a.weights.parent / "**" / "*.tflite"), recursive=True)) - before)
+        if res and os.path.isdir(str(res)):
+            new = sorted(glob.glob(str(Path(str(res)) / "*.tflite"))) + new
+        return Path(new[0]) if new else None
+
+    print("Exporting float TFLite (LiteRT FP32)...", flush=True)
+    fp16 = None
+    try:
+        fp16 = run_export(format="litert")
+    except Exception as e:
+        print(f"LiteRT export unavailable ({e}); trying legacy format='tflite', half=True", flush=True)
+        fp16 = run_export(format="tflite", half=True)
+    if fp16 is None:
         print("ERROR: no .tflite produced", file=sys.stderr)
         return 1
-    fp16 = Path(next((f for f in found if "16" in Path(f).name), found[0]))
     shutil.copy2(fp16, a.out / "detector.tflite")
     print(f"Copied {fp16.name} -> {a.out / 'detector.tflite'}", flush=True)
 
     info = {"source_weights": str(a.weights), "imgsz": a.imgsz, "classes": names,
-            "fp16_file": fp16.name, "fp16_size_mb": round(fp16.stat().st_size / 1e6, 2)}
+            "float_file": fp16.name, "float_size_mb": round(fp16.stat().st_size / 1e6, 2)}
     try:
-        info["fp16"] = describe(a.out / "detector.tflite")
+        info["float"] = describe(a.out / "detector.tflite")
     except Exception as e:
-        info["fp16"] = {"error": repr(e)}
+        info["float"] = {"error": repr(e)}
+
+    if a.dynamic_int8:
+        try:
+            print("Exporting dynamic INT8 (w8a32)...", flush=True)
+            p8 = run_export(format="litert", quantize="w8a32")
+            if p8:
+                shutil.copy2(p8, a.out / "detector_w8a32.tflite")
+                info["w8a32_size_mb"] = round(p8.stat().st_size / 1e6, 2)
+                info["w8a32"] = describe(a.out / "detector_w8a32.tflite")
+        except Exception as e:
+            info["w8a32_error"] = repr(e)
+            print(f"w8a32 export failed: {e}", flush=True)
 
     if a.int8:
         if not a.data:
@@ -100,10 +124,10 @@ def main() -> int:
         else:
             try:
                 print(f"Exporting INT8 TFLite (calibration fraction {a.fraction})...", flush=True)
-                r8 = model.export(format="tflite", imgsz=a.imgsz, int8=True, data=str(a.data), fraction=a.fraction)
-                if r8 and os.path.exists(str(r8)):
+                r8 = run_export(format="litert", quantize=8, data=str(a.data), fraction=a.fraction)
+                if r8:
                     shutil.copy2(r8, a.out / "detector_int8.tflite")
-                    info["int8_file"] = Path(str(r8)).name
+                    info["int8_file"] = r8.name
             except Exception as e:
                 info["int8_error"] = repr(e)
                 print(f"INT8 export failed: {e}", flush=True)

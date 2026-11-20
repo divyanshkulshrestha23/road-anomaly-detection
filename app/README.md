@@ -8,8 +8,10 @@ Gradle project root is this folder (`app/`); the app module is `rider/`.
 2. If Studio asks to create or update the Gradle wrapper, accept. The plugin versions in
    `build.gradle.kts` are a starting point; accept Studio's suggested upgrades if the sync fails.
    JDK 17 is required.
-3. Copy the trained FP16 model to `rider/src/main/assets/detector.tflite`
-   (from the Kaggle notebook's Output tab: `exports/*float16*.tflite`).
+3. Copy the trained model to `rider/src/main/assets/detector.tflite`
+   (output of `detector/export_tflite.py`: a float32 LiteRT model, ~10.7 MB for YOLO11n).
+   Current Ultralytics exports take input `[1, 3, 640, 640]` (channels first); the app reads the
+   layout from the model, so older `[1, 640, 640, 3]` exports also work.
 4. Enable USB debugging on the test phone, connect it, and press Run.
 
 Without a model the app still starts and shows a message; sensors and recording still work.
@@ -34,6 +36,16 @@ Without a model the app still starts and shows a message; sensors and recording 
 - `sensors/`: IMU + GPS streaming and CSV recording
 - `accident/`: crash rule
 - Signs and vehicle distance plug into `FrameScheduler` once their models exist.
+
+## Runtime
+
+LiteRT 1.4.2 (`com.google.ai.edge.litert:litert` + `litert-gpu`), the renamed TensorFlow Lite with
+the same `org.tensorflow.lite.Interpreter` API. The GPU delegate is tried first and the app falls
+back to CPU if it fails. If the model will not load ("unsupported op"), switch to `litert:2.3.0`
+(Interpreter is CPU-only there) and remove `litert-gpu`.
+
+The app's letterbox + decode + NMS was checked against Ultralytics on the same padded image:
+identical boxes, classes and scores.
 
 ## Not compiled yet
 

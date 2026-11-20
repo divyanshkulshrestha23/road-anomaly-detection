@@ -6,7 +6,10 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.os.Bundle
 import android.util.Log
+import android.text.InputType
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -26,6 +29,8 @@ import dtu.rider.detect.YoloTfliteDetector
 import dtu.rider.distance.CollisionWarning
 import dtu.rider.distance.DistanceEstimator
 import dtu.rider.distance.VehicleTracker
+import dtu.rider.emergency.EmergencySms
+import dtu.rider.signs.SignBoard
 import dtu.rider.pipeline.FrameScheduler
 import dtu.rider.pipeline.PotholeWarning
 import dtu.rider.sensors.SensorLogger
@@ -44,6 +49,12 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var lastTracks: List<VehicleTracker.Track> = emptyList()
     @Volatile private var lastRoad: List<Detection> = emptyList()
     @Volatile private var snapRequested = false
+    private val signBoard = SignBoard()
+    private lateinit var sms: EmergencySms
+
+    private val smsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        Toast.makeText(this, if (ok) "SMS permission granted" else "SMS permission denied: crash SMS will not be sent", Toast.LENGTH_LONG).show()
+    }
     private var scheduler: FrameScheduler? = null
     private val potholeWarning = PotholeWarning()
     private lateinit var alerts: AlertManager
@@ -66,12 +77,18 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
         alerts = AlertManager(binding.alert)
         sensors = SensorLogger(this)
+        sms = EmergencySms(this)
         crash = CrashDetector(sensors, { state, msg ->
             runOnUiThread {
                 Log.i(TAG, "Crash detector: $state $msg")
                 when (state) {
-                    CrashDetector.State.CONFIRMING, CrashDetector.State.ALERT ->
-                        alerts.post(Alert(AlertLevel.CRASH, msg, "crash_$state"))
+                    CrashDetector.State.CONFIRMING -> alerts.post(Alert(AlertLevel.CRASH, msg, "crash_$state"))
+                    CrashDetector.State.ALERT -> {
+                        val err = sms.send(sensors.lastLocation)
+                        val text = if (err == null) "Emergency SMS sent to ${sms.contact}" else "Emergency SMS NOT sent: $err"
+                        alerts.post(Alert(AlertLevel.CRASH, text, "crash_sms"))
+                        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+                    }
                     else -> Unit
                 }
             }
@@ -95,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         distance = DistanceEstimator(this)
         tracker = VehicleTracker(distance)
         binding.snap.setOnClickListener { snapRequested = true }
+        binding.sos.setOnClickListener { showSosDialog() }
 
         val problems = mutableListOf<String>()
         try {
@@ -164,6 +182,16 @@ class MainActivity : AppCompatActivity() {
 
         res.road?.let { dets ->
             lastRoad = dets
+            val fresh = signBoard.update(dets, w, distance.fNorm, sensors.lastLocation, System.currentTimeMillis())
+            fresh.forEach { alerts.post(Alert(AlertLevel.SIGN, SignBoard.pretty(it.label), "sign_${it.label}")) }
+            val signText = signBoard.current().joinToString("\n") { sgn ->
+                val rem = sgn.remaining(sensors.lastLocation)
+                SignBoard.pretty(sgn.label) + (rem?.let { "  ~%.0f m".format(it.coerceAtLeast(0f)) } ?: "")
+            }
+            runOnUiThread {
+                binding.signs.text = signText
+                binding.signs.visibility = if (signText.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
+            }
             if (potholeWarning.update(dets, w, h)) alerts.post(Alert(AlertLevel.POTHOLE, "POTHOLE AHEAD", "pothole"))
             sensors.logDetections(res.frameIndex, res.inferenceMs,
                 dets.map { "${it.classId},${it.label},${"%.3f".format(it.score)},${it.box.left.toInt()},${it.box.top.toInt()},${it.box.right.toInt()},${it.box.bottom.toInt()}" },
@@ -195,6 +223,31 @@ class MainActivity : AppCompatActivity() {
                 fpsEma, res.inferenceMs, res.vehicleMs, gpu, speedKmh,
                 if (sensors.isRecording) "| REC" else "", if (distance.calibrated) "" else " | dist uncalibrated")
         }
+    }
+
+    private fun showSosDialog() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_PHONE
+            hint = "+91XXXXXXXXXX"
+            setText(sms.contact ?: "")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Emergency contact")
+            .setMessage("Gets an SMS with your location if a crash is detected and you don't cancel.")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                sms.contact = input.text.toString()
+                if (!sms.hasPermission()) smsPermission.launch(Manifest.permission.SEND_SMS)
+                Toast.makeText(this, "Saved ${sms.contact ?: "(none)"}", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Send test SMS") { _, _ ->
+                sms.contact = input.text.toString()
+                if (!sms.hasPermission()) { smsPermission.launch(Manifest.permission.SEND_SMS); return@setNeutralButton }
+                val err = sms.send(sensors.lastLocation, test = true)
+                Toast.makeText(this, err ?: "Test SMS sent to ${sms.contact}", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onDestroy() {

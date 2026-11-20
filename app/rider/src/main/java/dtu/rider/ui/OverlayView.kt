@@ -59,6 +59,7 @@ class OverlayView @JvmOverloads constructor(
         1 -> Color.rgb(251, 140, 0)
         2 -> Color.rgb(253, 216, 53)
         3 -> Color.rgb(142, 36, 170)
-        else -> Color.rgb(30, 136, 229)
+        in 4..99 -> Color.rgb(67, 160, 71)    // road signs
+        else -> Color.rgb(30, 136, 229)       // tracked vehicles (100+)
     }
 }

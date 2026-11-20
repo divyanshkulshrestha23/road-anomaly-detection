@@ -31,6 +31,11 @@ Without a model the app still starts and shows a message; sensors and recording 
   bus, truck or bicycle is tracked and labelled with distance and time-to-collision (TTC). A
   "VEHICLE AHEAD" warning fires for a vehicle in the centre band with TTC < 3 s, or closer than
   5 m while closing. Tracks are logged to `vehicles.csv` when recording.
+- **Road signs (Module 2, once the shared model is in assets)**: a sign seen in 2 of 3 frames is
+  announced and listed in a green panel (top right) with its approximate distance; it is removed
+  once GPS shows the rider has passed it (+10 m), after 30 s, or 12 s after last seen without GPS.
+- **SOS contact button**: set the emergency number and send a test SMS. When the crash countdown
+  ends without a cancel, an SMS with a Google Maps link to the last GPS fix is sent automatically.
 - **Snap button**: saves the exact analysed frame to `Android/data/dtu.rider/files/snapshots/`
   (use these for distance calibration, see `eval/README.md`).
 - Crash detector state machine (multi-signal rule, see `docs/decisions.md` #3) with a cancel
@@ -44,6 +49,8 @@ Without a model the app still starts and shows a message; sensors and recording 
 - `alerts/`: priority alert queue with cooldown and beep
 - `sensors/`: IMU + GPS streaming and CSV recording
 - `accident/`: crash rule
+- `signs/`: sign panel and GPS-based removal
+- `emergency/`: emergency contact storage and crash SMS
 - `distance/`: distance estimate (mirror of `eval/distance_model.py`), vehicle tracker
   (alpha-beta smoothing of distance and closing speed), collision warning
 - Signs and vehicle distance plug into `FrameScheduler` once their models exist.

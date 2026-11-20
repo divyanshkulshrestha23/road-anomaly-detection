@@ -57,7 +57,7 @@ class SensorLogger(private val context: Context) : SensorEventListener {
             lastSpeedMps = speed
             listeners.forEach { it.onGps(loc.time, loc.latitude, loc.longitude, speed, if (loc.hasAccuracy()) loc.accuracy else null) }
             gpsOut?.let { w ->
-                synchronized(w) { w.write("${loc.time},${loc.latitude},${loc.longitude},${speed ?: ""},${if (loc.hasAccuracy()) loc.accuracy else ""}\n") }
+                synchronized(w) { w.write("${loc.time},${System.currentTimeMillis()},${loc.latitude},${loc.longitude},${speed ?: ""},${if (loc.hasAccuracy()) loc.accuracy else ""}\n") }
             }
         }
         override fun onProviderEnabled(provider: String) {}
@@ -89,8 +89,8 @@ class SensorLogger(private val context: Context) : SensorEventListener {
     fun startRecording(): File {
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val dir = File(context.getExternalFilesDir(null), "recordings/ride_$stamp").apply { mkdirs() }
-        imuOut = BufferedWriter(FileWriter(File(dir, "imu.csv"))).apply { write("t_ns,ax,ay,az,gx,gy,gz\n") }
-        gpsOut = BufferedWriter(FileWriter(File(dir, "gps.csv"))).apply { write("t_ms,lat,lon,speed_mps,accuracy_m\n") }
+        imuOut = BufferedWriter(FileWriter(File(dir, "imu.csv"))).apply { write("t_ns,t_wall_ms,ax,ay,az,gx,gy,gz\n") }
+        gpsOut = BufferedWriter(FileWriter(File(dir, "gps.csv"))).apply { write("t_ms,t_wall_ms,lat,lon,speed_mps,accuracy_m\n") }
         detOut = BufferedWriter(FileWriter(File(dir, "detections.csv"))).apply {
             write("t_ms,frame,inference_ms,class_id,label,score,left,top,right,bottom,img_w,img_h\n")
         }
@@ -144,7 +144,7 @@ class SensorLogger(private val context: Context) : SensorEventListener {
             Sensor.TYPE_ACCELEROMETER -> {
                 val (ax, ay, az) = Triple(e.values[0], e.values[1], e.values[2])
                 listeners.forEach { it.onImu(e.timestamp, ax, ay, az, gyro[0], gyro[1], gyro[2]) }
-                imuOut?.let { w -> synchronized(w) { w.write("${e.timestamp},$ax,$ay,$az,${gyro[0]},${gyro[1]},${gyro[2]}\n") } }
+                imuOut?.let { w -> synchronized(w) { w.write("${e.timestamp},${System.currentTimeMillis()},$ax,$ay,$az,${gyro[0]},${gyro[1]},${gyro[2]}\n") } }
             }
         }
     }

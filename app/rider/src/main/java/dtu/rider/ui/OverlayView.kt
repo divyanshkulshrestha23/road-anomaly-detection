@@ -46,7 +46,8 @@ class OverlayView @JvmOverloads constructor(
             boxPaint.color = c; bgPaint.color = c
             val r = map(d.box)
             canvas.drawRect(r, boxPaint)
-            val text = "${d.label} ${(d.score * 100).toInt()}%"
+            // Tracked vehicles (classId >= 100) already carry distance/TTC in the label.
+            val text = if (d.classId >= 100) d.label else "${d.label} ${(d.score * 100).toInt()}%"
             val tw = textPaint.measureText(text)
             canvas.drawRect(r.left, r.top - 40f, r.left + tw + 12f, r.top, bgPaint)
             canvas.drawText(text, r.left + 6f, r.top - 10f, textPaint)

@@ -7,3 +7,4 @@ Mapillary Traffic Sign Dataset,https://www.mapillary.com/dataset/trafficsign,aca
 Own Delhi road frames,local,own data,no,upload to Drive,not started,Record capture date and device.
 Recorded rides (phone sensors),local,own data,no,upload to Drive,not started,Record device model and mount position.
 Indian Traffic SignBoards (Roboflow),https://universe.roboflow.com/major-project-166na/indian-traffic-signboards,MIT,yes (keep licence notice),Roboflow export YOLOv8 zip -> private Kaggle dataset,candidate - primary,"75 Indian classes incl. hospital ahead, school ahead, speed limit 15-120. Image count not shown on page."
+YOLO11n COCO-pretrained weights (vehicle detector),https://github.com/ultralytics/assets/releases,AGPL-3.0 (Ultralytics); trained on COCO,yes,downloaded by Ultralytics,in use,"Used as-is for Module 3. Check AGPL obligations before distributing the app."

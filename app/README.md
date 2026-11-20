@@ -14,6 +14,9 @@ Gradle project root is this folder (`app/`); the app module is `rider/`.
    layout from the model, so older `[1, 640, 640, 3]` exports also work.
 4. Enable USB debugging on the test phone, connect it, and press Run.
 
+4b. For Module 3, also copy `vehicle.tflite` (COCO-pretrained YOLO11n, exported with the same
+   script; `vehicle_labels.txt` is already in assets) and, once calibrated, `distance_calib.json`.
+
 Without a model the app still starts and shows a message; sensors and recording still work.
 
 ## What it does today
@@ -24,6 +27,12 @@ Without a model the app still starts and shows a message; sensors and recording 
 - **Record button**: logs IMU (~50 Hz requested), GPS (1 Hz) and every frame's detections to
   `Android/data/dtu.rider/files/recordings/ride_<time>/` (imu.csv, gps.csv, detections.csv, device.txt).
   Copy these off the phone for analysis in `eval/`.
+- **Vehicles (Module 3)**: COCO-pretrained detector on every 2nd frame; each car, motorcycle,
+  bus, truck or bicycle is tracked and labelled with distance and time-to-collision (TTC). A
+  "VEHICLE AHEAD" warning fires for a vehicle in the centre band with TTC < 3 s, or closer than
+  5 m while closing. Tracks are logged to `vehicles.csv` when recording.
+- **Snap button**: saves the exact analysed frame to `Android/data/dtu.rider/files/snapshots/`
+  (use these for distance calibration, see `eval/README.md`).
 - Crash detector state machine (multi-signal rule, see `docs/decisions.md` #3) with a cancel
   countdown; tap the red banner to cancel. SMS sending is not wired yet.
 
@@ -35,6 +44,8 @@ Without a model the app still starts and shows a message; sensors and recording 
 - `alerts/`: priority alert queue with cooldown and beep
 - `sensors/`: IMU + GPS streaming and CSV recording
 - `accident/`: crash rule
+- `distance/`: distance estimate (mirror of `eval/distance_model.py`), vehicle tracker
+  (alpha-beta smoothing of distance and closing speed), collision warning
 - Signs and vehicle distance plug into `FrameScheduler` once their models exist.
 
 ## Runtime

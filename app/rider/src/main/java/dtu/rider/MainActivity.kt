@@ -21,7 +21,11 @@ import dtu.rider.alerts.Alert
 import dtu.rider.alerts.AlertLevel
 import dtu.rider.alerts.AlertManager
 import dtu.rider.databinding.ActivityMainBinding
+import dtu.rider.detect.Detection
 import dtu.rider.detect.YoloTfliteDetector
+import dtu.rider.distance.CollisionWarning
+import dtu.rider.distance.DistanceEstimator
+import dtu.rider.distance.VehicleTracker
 import dtu.rider.pipeline.FrameScheduler
 import dtu.rider.pipeline.PotholeWarning
 import dtu.rider.sensors.SensorLogger
@@ -33,6 +37,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraExecutor: ExecutorService
     private var detector: YoloTfliteDetector? = null
+    private var vehicleDetector: YoloTfliteDetector? = null
+    private lateinit var distance: DistanceEstimator
+    private lateinit var tracker: VehicleTracker
+    private val collision = CollisionWarning()
+    @Volatile private var lastTracks: List<VehicleTracker.Track> = emptyList()
+    @Volatile private var lastRoad: List<Detection> = emptyList()
+    @Volatile private var snapRequested = false
     private var scheduler: FrameScheduler? = null
     private val potholeWarning = PotholeWarning()
     private lateinit var alerts: AlertManager
@@ -81,12 +92,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        distance = DistanceEstimator(this)
+        tracker = VehicleTracker(distance)
+        binding.snap.setOnClickListener { snapRequested = true }
+
+        val problems = mutableListOf<String>()
         try {
-            detector = YoloTfliteDetector(this).also { scheduler = FrameScheduler(it) }
+            detector = YoloTfliteDetector(this)
         } catch (t: Throwable) {
-            Log.e(TAG, "Detector failed to load", t)
-            binding.stats.text = "No model: copy detector.tflite into rider/src/main/assets/\n${t.message}"
+            Log.e(TAG, "Road detector failed to load", t)
+            problems += "No road model (assets/detector.tflite): ${t.message}"
         }
+        try {
+            vehicleDetector = YoloTfliteDetector(this, modelAsset = "vehicle.tflite", labelsAsset = "vehicle_labels.txt", scoreThreshold = 0.4f)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Vehicle detector failed to load", t)
+            problems += "No vehicle model (assets/vehicle.tflite): ${t.message}"
+        }
+        if (detector != null || vehicleDetector != null) scheduler = FrameScheduler(detector, vehicleDetector)
+        if (!distance.calibrated) problems += "Distance not calibrated (assets/distance_calib.json)"
+        if (problems.isNotEmpty()) binding.stats.text = problems.joinToString("\n")
 
         val needed = arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION)
         if (needed.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
@@ -122,6 +147,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onFrame(bmp: Bitmap) {
+        if (snapRequested) {
+            snapRequested = false
+            val f = sensors.saveSnapshot(bmp)
+            runOnUiThread { Toast.makeText(this, "Saved ${f.name}", Toast.LENGTH_SHORT).show() }
+        }
         val sch = scheduler ?: return
         val res = sch.process(bmp)
         val now = System.nanoTime()
@@ -130,21 +160,40 @@ class MainActivity : AppCompatActivity() {
             fpsEma = if (fpsEma == 0f) fps else 0.9f * fpsEma + 0.1f * fps
         }
         lastFrameNs = now
+        val w = bmp.width; val h = bmp.height
 
-        val dets = res.road ?: return
-        val zone = potholeWarning.pathZone(bmp.width, bmp.height)
-        if (potholeWarning.update(dets, bmp.width, bmp.height)) {
-            alerts.post(Alert(AlertLevel.POTHOLE, "POTHOLE AHEAD", "pothole"))
+        res.road?.let { dets ->
+            lastRoad = dets
+            if (potholeWarning.update(dets, w, h)) alerts.post(Alert(AlertLevel.POTHOLE, "POTHOLE AHEAD", "pothole"))
+            sensors.logDetections(res.frameIndex, res.inferenceMs,
+                dets.map { "${it.classId},${it.label},${"%.3f".format(it.score)},${it.box.left.toInt()},${it.box.top.toInt()},${it.box.right.toInt()},${it.box.bottom.toInt()}" },
+                w, h)
         }
-        sensors.logDetections(res.frameIndex, res.inferenceMs,
-            dets.map { "${it.classId},${it.label},${"%.3f".format(it.score)},${it.box.left.toInt()},${it.box.top.toInt()},${it.box.right.toInt()},${it.box.bottom.toInt()}" },
-            bmp.width, bmp.height)
-        binding.overlay.update(dets, bmp.width, bmp.height, zone)
+        res.vehicles?.let { vdets ->
+            val tracks = tracker.update(vdets, w, h, System.currentTimeMillis())
+            lastTracks = tracks
+            collision.check(tracks, w)?.let { t ->
+                alerts.post(Alert(AlertLevel.COLLISION, "VEHICLE AHEAD %.0f m".format(t.z), "collision"))
+            }
+            sensors.logVehicles(res.frameIndex, tracks.map { t ->
+                "${t.id},${t.label},${"%.2f".format(t.z)},${"%.2f".format(t.closingMps)},${t.ttcS?.let { "%.2f".format(it) } ?: ""}," +
+                    "${t.box.left.toInt()},${t.box.top.toInt()},${t.box.right.toInt()},${t.box.bottom.toInt()}"
+            }, w, h)
+        }
+
+        // Overlay: road detections plus tracked vehicles labelled with distance and TTC.
+        val vehicleBoxes = lastTracks.map { t ->
+            val ttc = t.ttcS?.let { " TTC %.1fs".format(it) } ?: ""
+            Detection(100, "${t.label} %.0fm$ttc".format(t.z), 1f, t.box)
+        }
+        binding.overlay.update(lastRoad + vehicleBoxes, w, h, potholeWarning.pathZone(w, h))
+
         val speedKmh = sensors.lastSpeedMps?.let { "%.0f km/h".format(it * 3.6f) } ?: "no GPS"
+        val gpu = if (detector?.usingGpu == true) "GPU" else "CPU"
         runOnUiThread {
-            binding.stats.text = "FPS %.1f | infer %d ms | %s | %s | %s".format(
-                fpsEma, res.inferenceMs, if (detector?.usingGpu == true) "GPU" else "CPU", speedKmh,
-                if (sensors.isRecording) "REC" else "")
+            binding.stats.text = "FPS %.1f | road %d ms | veh %d ms | %s | %s %s%s".format(
+                fpsEma, res.inferenceMs, res.vehicleMs, gpu, speedKmh,
+                if (sensors.isRecording) "| REC" else "", if (distance.calibrated) "" else " | dist uncalibrated")
         }
     }
 

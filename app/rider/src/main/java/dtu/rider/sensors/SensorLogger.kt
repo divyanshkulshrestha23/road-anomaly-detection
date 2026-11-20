@@ -44,6 +44,7 @@ class SensorLogger(private val context: Context) : SensorEventListener {
     private var imuOut: BufferedWriter? = null
     private var gpsOut: BufferedWriter? = null
     private var detOut: BufferedWriter? = null
+    private var vehOut: BufferedWriter? = null
     val isRecording get() = imuOut != null
     var currentRideDir: File? = null; private set
 
@@ -93,6 +94,9 @@ class SensorLogger(private val context: Context) : SensorEventListener {
         detOut = BufferedWriter(FileWriter(File(dir, "detections.csv"))).apply {
             write("t_ms,frame,inference_ms,class_id,label,score,left,top,right,bottom,img_w,img_h\n")
         }
+        vehOut = BufferedWriter(FileWriter(File(dir, "vehicles.csv"))).apply {
+            write("t_ms,frame,track_id,label,distance_m,closing_mps,ttc_s,left,top,right,bottom,img_w,img_h,gps_speed_mps\n")
+        }
         File(dir, "device.txt").writeText(
             "manufacturer=${android.os.Build.MANUFACTURER}\nmodel=${android.os.Build.MODEL}\n" +
                 "soc=${if (android.os.Build.VERSION.SDK_INT >= 31) android.os.Build.SOC_MODEL else "unknown"}\n" +
@@ -103,8 +107,8 @@ class SensorLogger(private val context: Context) : SensorEventListener {
     }
 
     fun stopRecording() {
-        listOfNotNull(imuOut, gpsOut, detOut).forEach { w -> synchronized(w) { w.flush(); w.close() } }
-        imuOut = null; gpsOut = null; detOut = null
+        listOfNotNull(imuOut, gpsOut, detOut, vehOut).forEach { w -> synchronized(w) { w.flush(); w.close() } }
+        imuOut = null; gpsOut = null; detOut = null; vehOut = null
     }
 
     /** Called from the camera thread with each frame's detections (or an empty row for timing). */
@@ -115,6 +119,23 @@ class SensorLogger(private val context: Context) : SensorEventListener {
             if (rows.isEmpty()) w.write("$t,$frame,$inferenceMs,,,,,,,,$imgW,$imgH\n")
             else rows.forEach { w.write("$t,$frame,$inferenceMs,$it,$imgW,$imgH\n") }
         }
+    }
+
+    /** One row per tracked vehicle; [rows] are pre-formatted "id,label,z,closing,ttc,l,t,r,b". */
+    fun logVehicles(frame: Long, rows: List<String>, imgW: Int, imgH: Int) {
+        val w = vehOut ?: return
+        val t = System.currentTimeMillis()
+        val v = lastSpeedMps?.toString() ?: ""
+        synchronized(w) { rows.forEach { w.write("$t,$frame,$it,$imgW,$imgH,$v\n") } }
+    }
+
+    /** Saves the exact frame the app analyses (same crop as detection), e.g. for distance calibration. */
+    fun saveSnapshot(bitmap: android.graphics.Bitmap, tag: String = "snap"): File {
+        val dir = File(context.getExternalFilesDir(null), "snapshots").apply { mkdirs() }
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val f = File(dir, "${tag}_$stamp.jpg")
+        f.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, it) }
+        return f
     }
 
     override fun onSensorChanged(e: SensorEvent) {

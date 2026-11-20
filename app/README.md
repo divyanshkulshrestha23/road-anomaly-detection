@@ -24,9 +24,10 @@ Without a model the app still starts and shows a message; sensors and recording 
 - Rear camera preview with detection boxes (CameraX + TFLite, GPU delegate if available)
 - Pothole warning when a pothole sits in the dashed path zone in 2 of the last 3 frames
 - On-screen FPS, inference time, CPU/GPU, GPS speed
-- **Record button**: logs IMU (~50 Hz requested), GPS (1 Hz) and every frame's detections to
-  `Android/data/dtu.rider/files/recordings/ride_<time>/` (imu.csv, gps.csv, detections.csv, device.txt).
-  Copy these off the phone for analysis in `eval/`.
+- **Record button**: logs IMU (~50 Hz requested), GPS (1 Hz), every frame's detections and vehicle
+  tracks. On **Stop**, the ride is zipped to **Download/RiderAssist/ride_<time>.zip** (visible in the
+  Files app; share it from there). The unzipped copy stays in `Android/data/dtu.rider/files/recordings/`.
+  No storage permission is needed on Android 10+; Android 8-9 ask for it once.
 - **Vehicles (Module 3)**: COCO-pretrained detector on every 2nd frame; each car, motorcycle,
   bus, truck or bicycle is tracked and labelled with distance and time-to-collision (TTC). A
   "VEHICLE AHEAD" warning fires for a vehicle in the centre band with TTC < 3 s, or closer than
@@ -36,8 +37,10 @@ Without a model the app still starts and shows a message; sensors and recording 
   once GPS shows the rider has passed it (+10 m), after 30 s, or 12 s after last seen without GPS.
 - **SOS contact button**: set the emergency number and send a test SMS. When the crash countdown
   ends without a cancel, an SMS with a Google Maps link to the last GPS fix is sent automatically.
-- **Snap button**: saves the exact analysed frame to `Android/data/dtu.rider/files/snapshots/`
-  (use these for distance calibration, see `eval/README.md`).
+- **Snap button**: saves the exact analysed frame to **Pictures/RiderAssist/** (visible in Gallery/Files)
+  and to the app folder (use these for distance calibration, see `eval/README.md`).
+- **Portrait or landscape**: the app follows the phone's rotation without restarting the camera.
+  Rotating re-learns the crash detector's "upright" reference (~3 s).
 - Crash detector state machine (multi-signal rule, see `docs/decisions.md` #3) with a cancel
   countdown; tap the red banner to cancel. SMS sending is not wired yet.
 

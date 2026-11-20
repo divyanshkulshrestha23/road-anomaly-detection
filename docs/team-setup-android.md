@@ -95,8 +95,9 @@ Go in this order. Note what you see at each step.
 - The status bar at the top should show **FPS**, **road ... ms**, **veh ... ms**, **GPU or CPU**, and GPS speed. Write these numbers down.
 - "dist uncalibrated" is expected for now.
 - "No road model" / "No vehicle model" means the files in step 5 are missing.
-- Tap **Snap**: should show "Saved snap_...jpg".
-- Tap **Start recording**, wait 30 s, **Stop**: should show where it saved.
+- Tap **Snap**: should show "Saved to Pictures/RiderAssist/...". Check it appears in the Gallery.
+- Tap **Start recording**, wait 30 s, **Stop**: should show "Ride saved to Download/RiderAssist/ride_...zip". Check it in the Files app.
+- Rotate the phone between portrait and landscape: the camera view and boxes should follow without the app restarting.
 - Tap **SOS contact**, enter your own number, tap **Send test SMS**, and allow SMS permission. You should receive a "TEST from Rider Assist" SMS with a map link.
 
 **Step 2: Indoor check (5 min)**
@@ -105,17 +106,17 @@ Go in this order. Note what you see at each step.
 - This only checks that the models load and draw; it doesn't need to be accurate.
 
 **Step 3: Outdoors, standing still (10 min)**
-- Hold the phone in landscape at about handlebar height by a road.
+- Hold the phone (portrait or landscape) at about handlebar height by a road.
 - Do potholes get boxes? Do passing vehicles get boxes and distances? Does GPS speed appear?
 - Leave it running 5 minutes in daylight and note whether FPS drops (the phone heating up).
 
 **Step 4: Short ride (only after steps 1-3 work)**
-- Mount the phone **securely** in landscape. Press **Start recording**, ride 5-10 min on a familiar road with some potholes and one hard brake, then **Stop**.
+- Mount the phone **securely**, portrait or landscape (use the same orientation for the demo and for distance calibration). Press **Start recording**, ride 5-10 min on a familiar road with some potholes and one hard brake, then **Stop**.
 - **Do not look at the screen while riding.** Check afterwards, or have a passenger watch.
 - **No staged falls.** A safe crash-rule test is laying the parked bike down slowly with the app running.
 
 **Send Divyansh:**
 - FPS, road ms, veh ms, GPU/CPU, and the phone model.
 - Screenshots of anything wrong (wrong boxes, boxes in the wrong place, odd distances).
-- The recordings folder, zipped: `Android/data/dtu.rider/files/recordings/` (copy with a cable, or Android Studio **View → Tool Windows → Device Explorer**).
+- The ride zips from **Download/RiderAssist/** (share straight from the Files app), plus any Snap photos from **Pictures/RiderAssist/**.
 - If the app **crashes**: connect by USB, open **Logcat** at the bottom of Android Studio, type `RiderAssist` in the filter, and send the red lines.

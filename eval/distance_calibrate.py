@@ -5,9 +5,10 @@ centred in front. Name each file with the vehicle class and distance, for exampl
     car_5m_1.jpg   car_10m.jpg   motorcycle_7.5m.jpg   bus_20m_a.jpg
 Classes: car, motorcycle, bus, truck, bicycle.
 
-Fits, from those photos:
-  f_norm        focal length as a fraction of image width (from the width method)
-  horizon_norm  horizon row as a fraction of image height (from the ground method, given --height)
+Fits, from those photos (valid for portrait and landscape frames of the same camera):
+  f_long          focal length relative to the image's long side (from the width method)
+  horizon_offset  horizon row below the image centre, relative to the long side
+                  (from the ground method, given --height; depends on how the phone is tilted)
 Then reports per-photo error for width, ground and fused estimates, using leave-one-out
 (each photo is predicted with a calibration fitted on the others), and writes distance_calib.json
 for app/rider/src/main/assets/.
@@ -62,10 +63,10 @@ def detect(weights: str, photos: list[Path]) -> list[dict]:
 
 
 def fit(rows: list[dict], height: float, widths: dict) -> Calibration:
-    f_vals = [(r["box"][2] - r["box"][0]) * r["z"] / (widths[r["cls"]] * r["W"]) for r in rows if r["cls"] in widths]
-    f_norm = statistics.median(f_vals)
-    hz = [(r["box"][3] - f_norm * r["W"] * height / r["z"]) / r["H"] for r in rows]
-    return Calibration(f_norm=f_norm, horizon_norm=statistics.median(hz), camera_height_m=height,
+    f_vals = [(r["box"][2] - r["box"][0]) * r["z"] / (widths[r["cls"]] * max(r["W"], r["H"])) for r in rows if r["cls"] in widths]
+    f_long = statistics.median(f_vals)
+    hz = [(r["box"][3] - f_long * max(r["W"], r["H"]) * height / r["z"] - r["H"] / 2) / max(r["W"], r["H"]) for r in rows]
+    return Calibration(f_long=f_long, horizon_offset=statistics.median(hz), camera_height_m=height,
                        widths=dict(widths), calibrated=True)
 
 
@@ -89,9 +90,9 @@ def main() -> int:
         return 1
 
     cal = fit(rows, a.height, widths)
-    print(f"Fitted on {len(rows)} photos: f_norm={cal.f_norm:.4f} "
-          f"(horizontal FOV ~{2 * __import__('math').degrees(__import__('math').atan(0.5 / cal.f_norm)):.1f} deg), "
-          f"horizon_norm={cal.horizon_norm:.4f}")
+    print(f"Fitted on {len(rows)} photos: f_long={cal.f_long:.4f} "
+          f"(FOV across long side ~{2 * __import__('math').degrees(__import__('math').atan(0.5 / cal.f_long)):.1f} deg), "
+          f"horizon_offset={cal.horizon_offset:.4f}")
 
     # Leave-one-out error.
     report = []
@@ -99,7 +100,7 @@ def main() -> int:
         others = rows[:i] + rows[i + 1:]
         c = fit(others, a.height, widths) if len(others) >= 2 else cal
         box = tuple(r["box"])
-        zw = width_distance(c, r["cls"], box[2] - box[0], r["W"])
+        zw = width_distance(c, r["cls"], box[2] - box[0], r["W"], r["H"])
         zg = ground_distance(c, box[3], r["W"], r["H"])
         zf = fused_distance(c, r["cls"], box, r["W"], r["H"])
         e = lambda z: None if z is None else round(100 * (z - r["z"]) / r["z"], 1)
@@ -118,7 +119,7 @@ def main() -> int:
         print(f"{x['file'][:28]:28s} {x['true_m']:6.1f} {str(x['width_m']):>7s} {str(x['ground_m']):>7s} {str(x['fused_m']):>7s} {str(x['fused_err_pct']):>6s}")
     print("Leave-one-out mean absolute error (%):", summary["mean_abs_err_pct"])
 
-    out = {"f_norm": cal.f_norm, "horizon_norm": cal.horizon_norm, "camera_height_m": cal.camera_height_m,
+    out = {"f_long": cal.f_long, "horizon_offset": cal.horizon_offset, "camera_height_m": cal.camera_height_m,
            "widths": cal.widths, "calibrated": True, "fitted_on_photos": len(rows), "loo_error": summary}
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(out, indent=2))

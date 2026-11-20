@@ -4,7 +4,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.view.Surface
 import android.util.Log
 import android.text.InputType
 import android.widget.EditText
@@ -31,6 +34,7 @@ import dtu.rider.distance.DistanceEstimator
 import dtu.rider.distance.VehicleTracker
 import dtu.rider.emergency.EmergencySms
 import dtu.rider.signs.SignBoard
+import dtu.rider.util.PublicStorage
 import dtu.rider.pipeline.FrameScheduler
 import dtu.rider.pipeline.PotholeWarning
 import dtu.rider.sensors.SensorLogger
@@ -61,6 +65,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sensors: SensorLogger
     private lateinit var crash: CrashDetector
 
+    private var preview: Preview? = null
+    private var analysis: ImageAnalysis? = null
     private var fpsEma = 0f
     private var lastFrameNs = 0L
 
@@ -100,7 +106,12 @@ class MainActivity : AppCompatActivity() {
             if (sensors.isRecording) {
                 sensors.stopRecording()
                 binding.record.text = "Start recording"
-                Toast.makeText(this, "Saved to ${sensors.currentRideDir}", Toast.LENGTH_LONG).show()
+                val dir = sensors.currentRideDir
+                if (dir != null) Thread {
+                    val msg = try { "Ride saved to ${PublicStorage.exportZip(this, dir)}" }
+                              catch (t: Throwable) { Log.e(TAG, "Export failed", t); "Ride saved in app folder only (${t.message})" }
+                    runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
+                }.start()
             } else {
                 val dir = sensors.startRecording()
                 crash.recalibrate()
@@ -131,7 +142,9 @@ class MainActivity : AppCompatActivity() {
         if (!distance.calibrated) problems += "Distance not calibrated (assets/distance_calib.json)"
         if (problems.isNotEmpty()) binding.stats.text = problems.joinToString("\n")
 
-        val needed = arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION)
+        val needed = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION).apply {
+            if (Build.VERSION.SDK_INT < 29) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }.toTypedArray()
         if (needed.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
             startCamera(); sensors.start()
         } else permissionLauncher.launch(needed)
@@ -144,13 +157,17 @@ class MainActivity : AppCompatActivity() {
             val selector = ResolutionSelector.Builder()
                 .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
                 .build()
-            val preview = Preview.Builder().setResolutionSelector(selector).build()
+            val rotation = binding.root.display?.rotation ?: Surface.ROTATION_0
+            val preview = Preview.Builder().setResolutionSelector(selector).setTargetRotation(rotation).build()
                 .also { it.setSurfaceProvider(binding.preview.surfaceProvider) }
             val analysis = ImageAnalysis.Builder()
                 .setResolutionSelector(selector)
+                .setTargetRotation(rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
+            this.preview = preview
+            this.analysis = analysis
             analysis.setAnalyzer(cameraExecutor) { proxy ->
                 val rotation = proxy.imageInfo.rotationDegrees
                 val raw = proxy.toBitmap()
@@ -168,7 +185,9 @@ class MainActivity : AppCompatActivity() {
         if (snapRequested) {
             snapRequested = false
             val f = sensors.saveSnapshot(bmp)
-            runOnUiThread { Toast.makeText(this, "Saved ${f.name}", Toast.LENGTH_SHORT).show() }
+            val msg = try { "Saved to ${PublicStorage.saveImage(this, bmp, f.nameWithoutExtension)}" }
+                      catch (t: Throwable) { Log.e(TAG, "Public save failed", t); "Saved in app folder only: ${f.name}" }
+            runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
         }
         val sch = scheduler ?: return
         val res = sch.process(bmp)
@@ -182,7 +201,7 @@ class MainActivity : AppCompatActivity() {
 
         res.road?.let { dets ->
             lastRoad = dets
-            val fresh = signBoard.update(dets, w, distance.fNorm, sensors.lastLocation, System.currentTimeMillis())
+            val fresh = signBoard.update(dets, distance.focalPx(w, h), sensors.lastLocation, System.currentTimeMillis())
             fresh.forEach { alerts.post(Alert(AlertLevel.SIGN, SignBoard.pretty(it.label), "sign_${it.label}")) }
             val signText = signBoard.current().joinToString("\n") { sgn ->
                 val rem = sgn.remaining(sensors.lastLocation)
@@ -223,6 +242,16 @@ class MainActivity : AppCompatActivity() {
                 fpsEma, res.inferenceMs, res.vehicleMs, gpu, speedKmh,
                 if (sensors.isRecording) "| REC" else "", if (distance.calibrated) "" else " | dist uncalibrated")
         }
+    }
+
+    /** Portrait and landscape both work: the activity is not recreated, only the camera rotation updates. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val rotation = binding.root.display?.rotation ?: Surface.ROTATION_0
+        preview?.targetRotation = rotation
+        analysis?.targetRotation = rotation
+        // The phone's "upright" changed, so the crash detector's tilt reference must be re-learned (~3 s).
+        crash.recalibrate()
     }
 
     private fun showSosDialog() {

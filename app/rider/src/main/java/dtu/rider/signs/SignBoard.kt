@@ -41,7 +41,7 @@ class SignBoard(
     private val active = LinkedHashMap<String, ActiveSign>()
 
     /** Call on every road-model frame. Returns signs that became active on this frame. */
-    fun update(dets: List<Detection>, imgW: Int, fNorm: Float, location: Location?, nowMs: Long): List<ActiveSign> {
+    fun update(dets: List<Detection>, focalPx: Float, location: Location?, nowMs: Long): List<ActiveSign> {
         val seen = dets.filter { it.label in signLabels && it.score >= minScore }
         history.addLast(seen.map { it.label }.toSet())
         while (history.size > window) history.removeFirst()
@@ -49,7 +49,7 @@ class SignBoard(
         for (label in seen.map { it.label }.toSet()) {
             val hits = history.count { label in it }
             val box = seen.filter { it.label == label }.maxByOrNull { it.box.width() }!!.box
-            val ahead = estimateAhead(box, imgW, fNorm)
+            val ahead = estimateAhead(box, focalPx)
             val cur = active[label]
             if (cur != null) {
                 cur.lastSeenMs = nowMs
@@ -80,8 +80,8 @@ class SignBoard(
 
     fun current(): List<ActiveSign> = active.values.toList()
 
-    private fun estimateAhead(box: RectF, imgW: Int, fNorm: Float): Float =
-        if (box.width() <= 1f) 50f else (signWidthM * fNorm * imgW / box.width()).coerceIn(2f, 150f)
+    private fun estimateAhead(box: RectF, focalPx: Float): Float =
+        if (box.width() <= 1f) 50f else (signWidthM * focalPx / box.width()).coerceIn(2f, 150f)
 
     companion object {
         fun pretty(label: String) = when (label) {

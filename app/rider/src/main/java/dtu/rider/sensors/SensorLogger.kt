@@ -50,6 +50,11 @@ class SensorLogger(private val context: Context) : SensorEventListener {
 
     fun addListener(l: Listener) { listeners += l }
 
+    /** Writes under the writer's lock; ignores writes that race with Stop recording closing the file. */
+    private inline fun safeWrite(w: BufferedWriter, block: (BufferedWriter) -> Unit) {
+        try { synchronized(w) { block(w) } } catch (_: java.io.IOException) { }
+    }
+
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(loc: Location) {
             lastLocation = loc
@@ -57,7 +62,7 @@ class SensorLogger(private val context: Context) : SensorEventListener {
             lastSpeedMps = speed
             listeners.forEach { it.onGps(loc.time, loc.latitude, loc.longitude, speed, if (loc.hasAccuracy()) loc.accuracy else null) }
             gpsOut?.let { w ->
-                synchronized(w) { w.write("${loc.time},${System.currentTimeMillis()},${loc.latitude},${loc.longitude},${speed ?: ""},${if (loc.hasAccuracy()) loc.accuracy else ""}\n") }
+                safeWrite(w) { it.write("${loc.time},${System.currentTimeMillis()},${loc.latitude},${loc.longitude},${speed ?: ""},${if (loc.hasAccuracy()) loc.accuracy else ""}\n") }
             }
         }
         override fun onProviderEnabled(provider: String) {}
@@ -107,7 +112,7 @@ class SensorLogger(private val context: Context) : SensorEventListener {
     }
 
     fun stopRecording() {
-        listOfNotNull(imuOut, gpsOut, detOut, vehOut).forEach { w -> synchronized(w) { w.flush(); w.close() } }
+        listOfNotNull(imuOut, gpsOut, detOut, vehOut).forEach { w -> safeWrite(w) { it.flush(); it.close() } }
         imuOut = null; gpsOut = null; detOut = null; vehOut = null
     }
 
@@ -115,9 +120,9 @@ class SensorLogger(private val context: Context) : SensorEventListener {
     fun logDetections(frame: Long, inferenceMs: Long, rows: List<String>, imgW: Int, imgH: Int) {
         val w = detOut ?: return
         val t = System.currentTimeMillis()
-        synchronized(w) {
-            if (rows.isEmpty()) w.write("$t,$frame,$inferenceMs,,,,,,,,$imgW,$imgH\n")
-            else rows.forEach { w.write("$t,$frame,$inferenceMs,$it,$imgW,$imgH\n") }
+        safeWrite(w) { out ->
+            if (rows.isEmpty()) out.write("$t,$frame,$inferenceMs,,,,,,,,$imgW,$imgH\n")
+            else rows.forEach { out.write("$t,$frame,$inferenceMs,$it,$imgW,$imgH\n") }
         }
     }
 
@@ -126,10 +131,10 @@ class SensorLogger(private val context: Context) : SensorEventListener {
         val w = vehOut ?: return
         val t = System.currentTimeMillis()
         val v = lastSpeedMps?.toString() ?: ""
-        synchronized(w) { rows.forEach { w.write("$t,$frame,$it,$imgW,$imgH,$v\n") } }
+        safeWrite(w) { out -> rows.forEach { out.write("$t,$frame,$it,$imgW,$imgH,$v\n") } }
     }
 
-    /** Saves the exact frame the app analyses (same crop as detection), e.g. for distance calibration. */
+    /** Saves the exact frame the app analyses (same crop as detection) in the app folder; see PublicStorage for the visible copy. */
     fun saveSnapshot(bitmap: android.graphics.Bitmap, tag: String = "snap"): File {
         val dir = File(context.getExternalFilesDir(null), "snapshots").apply { mkdirs() }
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
@@ -144,7 +149,7 @@ class SensorLogger(private val context: Context) : SensorEventListener {
             Sensor.TYPE_ACCELEROMETER -> {
                 val (ax, ay, az) = Triple(e.values[0], e.values[1], e.values[2])
                 listeners.forEach { it.onImu(e.timestamp, ax, ay, az, gyro[0], gyro[1], gyro[2]) }
-                imuOut?.let { w -> synchronized(w) { w.write("${e.timestamp},${System.currentTimeMillis()},$ax,$ay,$az,${gyro[0]},${gyro[1]},${gyro[2]}\n") } }
+                imuOut?.let { w -> safeWrite(w) { it.write("${e.timestamp},${System.currentTimeMillis()},$ax,$ay,$az,${gyro[0]},${gyro[1]},${gyro[2]}\n") } }
             }
         }
     }

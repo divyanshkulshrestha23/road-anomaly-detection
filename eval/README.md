@@ -12,11 +12,12 @@ Results go in `results/` as CSV, one file per run.
 
 ## Distance calibration (Module 3)
 
-1. Mount the phone on the bike as it will be used. Measure the camera lens height above the road.
+1. Mount the phone on the bike as it will be used (the calibration works for portrait and landscape,
+   but the phone's tilt on the mount matters). Measure the camera lens height above the road.
 2. Park a car straight ahead. Mark 5, 7.5, 10, 15, 20 and 30 m from the camera with a tape.
 3. At each mark, press **Snap** in the app (not the phone's camera app: Snap saves the exact
    frame the app analyses). Repeat with a motorcycle. Measure both vehicles' real widths.
-4. Copy `Android/data/dtu.rider/files/snapshots/` off the phone and rename each file with class
+4. Copy the Snap photos from **Pictures/RiderAssist/** off the phone and rename each file with class
    and distance, e.g. `car_10m.jpg`, `motorcycle_7.5m.jpg`.
 5. Run:
    ```
@@ -28,7 +29,7 @@ Results go in `results/` as CSV, one file per run.
 
 ## Ride analysis (Module 4 tuning, sensor rates, FPS)
 
-Copy a ride folder off the phone (`Android/data/dtu.rider/files/recordings/ride_<time>/`), then:
+Take a ride zip from the phone's **Download/RiderAssist/** folder, unzip it, then:
 ```
 python eval/analyze_ride.py ride_<time>/
 ```

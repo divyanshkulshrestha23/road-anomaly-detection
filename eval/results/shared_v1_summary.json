@@ -1,0 +1,221 @@
+{
+  "run": "shared_v1",
+  "model": "yolo11n.pt",
+  "imgsz": 640,
+  "epochs": 60,
+  "time_cap_h": 5,
+  "batch": 32,
+  "platform": "kaggle",
+  "date": "2026-11-20T17:57:25",
+  "gpu": "Tesla T4",
+  "repo_commit": "d89d864",
+  "classes": {
+    "0": "pothole",
+    "1": "longitudinal_crack",
+    "2": "transverse_crack",
+    "3": "alligator_crack",
+    "4": "regulatory",
+    "5": "warning",
+    "6": "hospital",
+    "7": "school",
+    "8": "speed_limit"
+  },
+  "results": {
+    "pothole_all": {
+      "mAP50_all_present": 0.5288,
+      "mAP50_95_all_present": 0.2655,
+      "precision": 0.5887,
+      "recall": 0.5043,
+      "signs_only_mAP50": null,
+      "road_only_mAP50": 0.5288,
+      "per_class_mAP50": {
+        "pothole": 0.4403,
+        "longitudinal_crack": 0.5388,
+        "transverse_crack": 0.4832,
+        "alligator_crack": 0.6529
+      },
+      "per_class_mAP50_95": {
+        "pothole": 0.1915,
+        "longitudinal_crack": 0.2977,
+        "transverse_crack": 0.2302,
+        "alligator_crack": 0.3424
+      }
+    },
+    "pothole_india": {
+      "mAP50_all_present": 0.3125,
+      "mAP50_95_all_present": 0.1389,
+      "precision": 0.3706,
+      "recall": 0.3143,
+      "signs_only_mAP50": null,
+      "road_only_mAP50": 0.3125,
+      "per_class_mAP50": {
+        "pothole": 0.385,
+        "longitudinal_crack": 0.2548,
+        "transverse_crack": 0.0167,
+        "alligator_crack": 0.5935
+      },
+      "per_class_mAP50_95": {
+        "pothole": 0.1535,
+        "longitudinal_crack": 0.1163,
+        "transverse_crack": 0.0066,
+        "alligator_crack": 0.2793
+      }
+    },
+    "signs_closeup": {
+      "mAP50_all_present": 0.9374,
+      "mAP50_95_all_present": 0.7744,
+      "precision": 0.8768,
+      "recall": 0.9309,
+      "signs_only_mAP50": 0.9374,
+      "road_only_mAP50": null,
+      "per_class_mAP50": {
+        "regulatory": 0.9886,
+        "warning": 0.9686,
+        "hospital": 0.995,
+        "school": 0.7398,
+        "speed_limit": 0.995
+      },
+      "per_class_mAP50_95": {
+        "regulatory": 0.9139,
+        "warning": 0.8666,
+        "hospital": 0.5541,
+        "school": 0.616,
+        "speed_limit": 0.9212
+      }
+    },
+    "signs_paste": {
+      "mAP50_all_present": 0.7483,
+      "mAP50_95_all_present": 0.5738,
+      "precision": 0.7799,
+      "recall": 0.7127,
+      "signs_only_mAP50": 0.9057,
+      "road_only_mAP50": 0.5515,
+      "per_class_mAP50": {
+        "pothole": 0.4932,
+        "longitudinal_crack": 0.5465,
+        "transverse_crack": 0.4611,
+        "alligator_crack": 0.7051,
+        "regulatory": 0.975,
+        "warning": 0.9508,
+        "hospital": 0.9817,
+        "school": 0.6662,
+        "speed_limit": 0.9546
+      },
+      "per_class_mAP50_95": {
+        "pothole": 0.2183,
+        "longitudinal_crack": 0.3177,
+        "transverse_crack": 0.2117,
+        "alligator_crack": 0.3808,
+        "regulatory": 0.8775,
+        "warning": 0.8353,
+        "hospital": 0.8714,
+        "school": 0.5573,
+        "speed_limit": 0.894
+      }
+    },
+    "signs_paste_occ25": {
+      "mAP50_all_present": 0.6917,
+      "mAP50_95_all_present": 0.4063,
+      "precision": 0.7015,
+      "recall": 0.6277,
+      "signs_only_mAP50": 0.8019,
+      "road_only_mAP50": 0.5539,
+      "per_class_mAP50": {
+        "pothole": 0.4939,
+        "longitudinal_crack": 0.5463,
+        "transverse_crack": 0.4701,
+        "alligator_crack": 0.7054,
+        "regulatory": 0.9597,
+        "warning": 0.9316,
+        "hospital": 0.6478,
+        "school": 0.5499,
+        "speed_limit": 0.9207
+      },
+      "per_class_mAP50_95": {
+        "pothole": 0.2178,
+        "longitudinal_crack": 0.3178,
+        "transverse_crack": 0.2145,
+        "alligator_crack": 0.3818,
+        "regulatory": 0.587,
+        "warning": 0.5832,
+        "hospital": 0.354,
+        "school": 0.3639,
+        "speed_limit": 0.6365
+      }
+    },
+    "signs_paste_occ50": {
+      "mAP50_all_present": 0.4926,
+      "mAP50_95_all_present": 0.2662,
+      "precision": 0.5448,
+      "recall": 0.4769,
+      "signs_only_mAP50": 0.4434,
+      "road_only_mAP50": 0.5541,
+      "per_class_mAP50": {
+        "pothole": 0.4944,
+        "longitudinal_crack": 0.5459,
+        "transverse_crack": 0.4711,
+        "alligator_crack": 0.705,
+        "regulatory": 0.6069,
+        "warning": 0.5587,
+        "hospital": 0.3516,
+        "school": 0.1423,
+        "speed_limit": 0.5577
+      },
+      "per_class_mAP50_95": {
+        "pothole": 0.2179,
+        "longitudinal_crack": 0.318,
+        "transverse_crack": 0.2139,
+        "alligator_crack": 0.3808,
+        "regulatory": 0.3251,
+        "warning": 0.3595,
+        "hospital": 0.1598,
+        "school": 0.096,
+        "speed_limit": 0.3248
+      }
+    },
+    "signs_test_occ25": {
+      "mAP50_all_present": 0.9127,
+      "mAP50_95_all_present": 0.7899,
+      "precision": 0.8083,
+      "recall": 0.9209,
+      "signs_only_mAP50": 0.9127,
+      "road_only_mAP50": null,
+      "per_class_mAP50": {
+        "regulatory": 0.9863,
+        "warning": 0.9659,
+        "hospital": 0.946,
+        "school": 0.671,
+        "speed_limit": 0.9944
+      },
+      "per_class_mAP50_95": {
+        "regulatory": 0.9356,
+        "warning": 0.8883,
+        "hospital": 0.5712,
+        "school": 0.6039,
+        "speed_limit": 0.9502
+      }
+    },
+    "signs_test_occ50": {
+      "mAP50_all_present": 0.8367,
+      "mAP50_95_all_present": 0.7519,
+      "precision": 0.9161,
+      "recall": 0.7486,
+      "signs_only_mAP50": 0.8367,
+      "road_only_mAP50": null,
+      "per_class_mAP50": {
+        "regulatory": 0.9597,
+        "warning": 0.916,
+        "hospital": 0.971,
+        "school": 0.3831,
+        "speed_limit": 0.9539
+      },
+      "per_class_mAP50_95": {
+        "regulatory": 0.9008,
+        "warning": 0.8456,
+        "hospital": 0.7471,
+        "school": 0.352,
+        "speed_limit": 0.9143
+      }
+    }
+  }
+}

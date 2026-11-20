@@ -39,6 +39,14 @@
         android:visibility="gone" />
 
     <Button
+        android:id="@+id/snap"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="12dp"
+        android:text="Snap" />
+
+    <Button
         android:id="@+id/record"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

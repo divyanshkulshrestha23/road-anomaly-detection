@@ -2,3 +2,8 @@ pothole
 longitudinal_crack
 transverse_crack
 alligator_crack
+regulatory
+warning
+hospital
+school
+speed_limit

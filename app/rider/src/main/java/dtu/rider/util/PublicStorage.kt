@@ -33,6 +33,16 @@ object PublicStorage {
         return "Pictures/$FOLDER/$file"
     }
 
+    /** Writes a text file to Download/RiderAssist/<name>.txt. */
+    fun saveText(context: Context, name: String, text: String): String {
+        val file = "$name.txt"
+        write(context, file, "text/plain", Environment.DIRECTORY_DOWNLOADS,
+            if (Build.VERSION.SDK_INT >= 29) MediaStore.Downloads.EXTERNAL_CONTENT_URI else null) { out ->
+            out.write(text.toByteArray())
+        }
+        return "Download/$FOLDER/$file"
+    }
+
     /** Zips every file in [dir] into Download/RiderAssist/<dir name>.zip. */
     fun exportZip(context: Context, dir: File): String {
         val file = "${dir.name}.zip"

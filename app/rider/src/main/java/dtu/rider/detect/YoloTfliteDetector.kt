@@ -84,6 +84,13 @@ class YoloTfliteDetector(
         inputFloats = FloatArray(3 * inputW * inputH)
 
         outShape = interpreter.getOutputTensor(0).shape()
+        // Output must be [1, 4 + classes, N] or [1, N, 4 + classes]. A labels file that does not match
+        // the model (e.g. 9-class labels with the 4-class model) would read past the output: refuse it.
+        val expected = 4 + labels.size
+        require(outShape.size == 3 && (outShape[1] == expected || outShape[2] == expected)) {
+            "$labelsAsset has ${labels.size} classes but $modelAsset outputs ${outShape.contentToString()} " +
+                "(expects $expected values per box). Use matching model and labels files."
+        }
         output = Array(outShape[0]) { Array(outShape[1]) { FloatArray(outShape[2]) } }
         Log.i(TAG, "Model in=${inShape.contentToString()} (${if (channelsFirstInput) "NCHW" else "NHWC"}) out=${outShape.contentToString()} gpu=$usingGpu labels=${labels.size}")
     }
@@ -132,7 +139,7 @@ class YoloTfliteDetector(
 
         // Work out layout: channels-first [1, 4+nc, N] or channels-last [1, N, 4+nc].
         val nc = labels.size
-        val channelsFirst = outShape[1] == 4 + nc || outShape[1] < outShape[2]
+        val channelsFirst = outShape[1] == 4 + nc
         val n = if (channelsFirst) outShape[2] else outShape[1]
         val o = output[0]
         fun v(c: Int, i: Int) = if (channelsFirst) o[c][i] else o[i][c]

@@ -34,6 +34,7 @@ import dtu.rider.distance.DistanceEstimator
 import dtu.rider.distance.VehicleTracker
 import dtu.rider.emergency.EmergencySms
 import dtu.rider.signs.SignBoard
+import dtu.rider.util.CrashReporter
 import dtu.rider.util.PublicStorage
 import dtu.rider.pipeline.FrameScheduler
 import dtu.rider.pipeline.PotholeWarning
@@ -53,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var lastTracks: List<VehicleTracker.Track> = emptyList()
     @Volatile private var lastRoad: List<Detection> = emptyList()
     @Volatile private var snapRequested = false
+    @Volatile private var frameErrorShown = false
     private val signBoard = SignBoard()
     private lateinit var sms: EmergencySms
 
@@ -78,6 +80,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReporter.install(this)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -174,7 +177,16 @@ class MainActivity : AppCompatActivity() {
                 proxy.close()
                 val bmp = if (rotation == 0) raw else
                     Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, Matrix().apply { postRotate(rotation.toFloat()) }, true)
-                onFrame(bmp)
+                try {
+                    onFrame(bmp)
+                } catch (t: Throwable) {
+                    // Keep running: show the error once instead of crashing on every frame.
+                    Log.e(TAG, "Frame processing failed", t)
+                    if (!frameErrorShown) {
+                        frameErrorShown = true
+                        runOnUiThread { binding.stats.text = "Frame error: ${t.javaClass.simpleName}: ${t.message}" }
+                    }
+                }
             }
             provider.unbindAll()
             provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)

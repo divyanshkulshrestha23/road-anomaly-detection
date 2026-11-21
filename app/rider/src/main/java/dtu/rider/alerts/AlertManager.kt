@@ -24,12 +24,13 @@ class AlertManager(private val banner: TextView, private val cooldownMs: Long = 
     private var showing = false
     private val tone = try { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90) } catch (_: Throwable) { null }
 
+    /** Safe to call from any thread: all state is touched on the main thread only. */
     fun post(alert: Alert) {
-        val now = System.currentTimeMillis()
-        val last = lastShown[alert.key]
-        if (last != null && now - last < cooldownMs) return
-        lastShown[alert.key] = now
         main.post {
+            val now = System.currentTimeMillis()
+            val last = lastShown[alert.key]
+            if (last != null && now - last < cooldownMs) return@post
+            lastShown[alert.key] = now
             queue.add(alert)
             if (!showing) showNext()
         }

@@ -39,7 +39,8 @@ class YoloTfliteDetector(
         .readLines().map { it.trim() }.filter { it.isNotEmpty() }
 
     private var gpuDelegate: GpuDelegate? = null
-    private val interpreter: Interpreter
+    private val modelBuffer: MappedByteBuffer
+    private var interpreter: Interpreter
     val inputW: Int
     val inputH: Int
     private val channelsFirstInput: Boolean
@@ -52,6 +53,7 @@ class YoloTfliteDetector(
 
     init {
         val model = loadModel(context, modelAsset)
+        modelBuffer = model
         val opts = Interpreter.Options().apply { setNumThreads(4) }
         if (useGpu) {
             try {
@@ -135,7 +137,18 @@ class YoloTfliteDetector(
         inputBuffer.rewind()
         inputBuffer.asFloatBuffer().put(f)
         inputBuffer.rewind()
-        interpreter.run(inputBuffer, output)
+        try {
+            interpreter.run(inputBuffer, output)
+        } catch (t: Throwable) {
+            if (!usingGpu) throw t
+            // Some GPUs accept the model at load time but fail on the first run: switch to CPU for good.
+            Log.w(TAG, "GPU run failed, switching to CPU", t)
+            try { interpreter.close() } catch (_: Throwable) {}
+            gpuDelegate?.close(); gpuDelegate = null; usingGpu = false
+            interpreter = Interpreter(modelBuffer, Interpreter.Options().apply { setNumThreads(4) })
+            inputBuffer.rewind()
+            interpreter.run(inputBuffer, output)
+        }
 
         // Work out layout: channels-first [1, 4+nc, N] or channels-last [1, N, 4+nc].
         val nc = labels.size

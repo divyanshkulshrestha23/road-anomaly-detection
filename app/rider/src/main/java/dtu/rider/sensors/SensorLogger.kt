@@ -50,9 +50,19 @@ class SensorLogger(private val context: Context) : SensorEventListener {
 
     fun addListener(l: Listener) { listeners += l }
 
-    /** Writes under the writer's lock; ignores writes that race with Stop recording closing the file. */
-    private inline fun safeWrite(w: BufferedWriter, block: (BufferedWriter) -> Unit) {
-        try { synchronized(w) { block(w) } } catch (_: java.io.IOException) { }
+    // One lock for all CSV writers. An explicit lock (not `synchronized` inside an inline function)
+    // because that combination produced bytecode the Android verifier rejected (VerifyError at startup).
+    private val ioLock = java.util.concurrent.locks.ReentrantLock()
+
+    /** Writes under the lock; ignores writes that race with Stop recording closing the file. */
+    private fun safeWrite(w: BufferedWriter, block: (BufferedWriter) -> Unit) {
+        ioLock.lock()
+        try {
+            block(w)
+        } catch (_: java.io.IOException) {
+        } finally {
+            ioLock.unlock()
+        }
     }
 
     private val locationListener = object : LocationListener {

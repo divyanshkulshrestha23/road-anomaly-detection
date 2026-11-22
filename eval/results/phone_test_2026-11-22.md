@@ -1,7 +1,8 @@
 # First phone test (Harsh, 22 Nov 2026)
 
 Phone: Samsung Galaxy S23 FE (SM-S711B), Android 16 (API 36). App in portrait, 480x640 analysis frames.
-Inputs: two screen recordings (indoor + rides) and ride `ride_20261122_143816` (83 s, max 47 km/h).
+Inputs: two screen recordings and ride `ride_20261122_143816` (83 s, max 47 km/h). The first video is a real ride;
+the second is a dry run with the phone pointed at a screen playing someone else's ride video (phone stationary).
 
 ## Measured
 | Item | Value |
@@ -10,7 +11,7 @@ Inputs: two screen recordings (indoor + rides) and ride `ride_20261122_143816` (
 | Road model inference (GPU) | median 51 ms, 95th pct 62 ms |
 | Vehicle model inference (GPU) | ~45-71 ms on frames where it runs |
 | IMU rate delivered | **500 Hz** (50 Hz requested) |
-| GPS | 1 Hz, no gaps, median accuracy 2 m (ride); speed stuck at 1-2 km/h in the second video session |
+| GPS | 1 Hz, no gaps, median accuracy 2 m (ride). 1-2 km/h in the dry run is correct (phone stationary) |
 | Max acceleration on ride | 1.55 g (no impacts above the 2 g crash threshold) |
 | Crash rule replay | no false alarm |
 
@@ -20,8 +21,9 @@ Inputs: two screen recordings (indoor + rides) and ride `ride_20261122_143816` (
 2. Sign false positives on large close-up objects (keyboard: HOSPITAL; probably the round speedometer:
    persistent REGULATORY ~0 m). Real road signs in the ride were 2-8% of frame width, upper half.
    Fix: signs must be <= 25% of frame width and end above 85% of frame height; sign score >= 0.55.
-3. Stale GPS kept signs on screen. Fix: fixes older than 5 s are ignored ("GPS stale" in status bar);
-   panel shows "(passing)" instead of "~0 m".
+3. In the dry run, signs stayed listed because the phone was not moving (correct) and the played video's
+   speedometer kept being re-detected as a sign (fixed by 2). Hardening anyway: GPS fixes older than 5 s
+   are ignored ("GPS stale" in status bar, e.g. under flyovers); panel shows "(passing)" instead of "~0 m".
 4. IMU at 500 Hz broke the crash detector's timing assumptions. Fix: app keeps ~50 Hz (>= 18 ms apart);
    analysis replay does the same.
 5. Vehicle tracks fragmented (123 of 205 tracks lived 1-2 updates) and closing speeds noisy (+-20 m/s).

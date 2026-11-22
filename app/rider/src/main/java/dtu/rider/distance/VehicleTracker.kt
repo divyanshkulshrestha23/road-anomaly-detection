@@ -12,7 +12,8 @@ import kotlin.math.min
  */
 class VehicleTracker(
     private val estimator: DistanceEstimator,
-    private val iouMatch: Float = 0.3f,
+    private val iouMatch: Float = 0.2f,
+    private val maxRateMps: Float = 25f,     // |closing speed| above this is measurement noise
     private val maxMissMs: Long = 1000L,
     private val alpha: Float = 0.4f,
     private val beta: Float = 0.1f,
@@ -27,7 +28,8 @@ class VehicleTracker(
         var hits: Int = 1,
     ) {
         val closingMps get() = -zRate
-        val ttcS: Float? get() = if (closingMps > 0.5f) z / closingMps else null
+        /** Only after a few updates, when the closing speed has settled. */
+        val ttcS: Float? get() = if (hits >= MIN_HITS_TTC && closingMps > 0.5f) z / closingMps else null
     }
 
     private val tracks = mutableListOf<Track>()
@@ -39,7 +41,13 @@ class VehicleTracker(
         // Greedy matching, best IoU first.
         val pairs = mutableListOf<Triple<Track, Detection, Float>>()
         for (t in tracks) for (d in vehicles) {
-            val i = iou(t.box, d.box); if (i >= iouMatch) pairs += Triple(t, d, i)
+            // Overlap, or (for fast-moving nearby vehicles at ~5 updates/s) a nearby centre of similar size.
+            val i = iou(t.box, d.box)
+            val dc = Math.hypot((t.box.centerX() - d.box.centerX()).toDouble(), (t.box.centerY() - d.box.centerY()).toDouble()).toFloat()
+            val size = maxOf(t.box.width(), t.box.height())
+            val similar = d.box.width() in 0.6f * t.box.width()..1.6f * t.box.width()
+            val score = if (i >= iouMatch) i else if (similar && dc < 0.6f * size) 0.1f * (1f - dc / (0.6f * size)) else 0f
+            if (score > 0f) pairs += Triple(t, d, score)
         }
         val usedT = mutableSetOf<Int>()
         for ((t, d, _) in pairs.sortedByDescending { it.third }) {
@@ -49,7 +57,7 @@ class VehicleTracker(
             val zPred = t.z + t.zRate * dt
             val r = zMeas - zPred
             t.z = zPred + alpha * r
-            t.zRate += beta * r / dt
+            t.zRate = (t.zRate + beta * r / dt).coerceIn(-maxRateMps, maxRateMps)
             t.box = d.box; t.label = d.label; t.lastMs = nowMs; t.hits++
             usedT += t.id; unmatched -= d
         }
@@ -60,6 +68,8 @@ class VehicleTracker(
         tracks.removeAll { nowMs - it.lastMs > maxMissMs }
         return tracks.filter { it.lastMs == nowMs }
     }
+
+    companion object { const val MIN_HITS_TTC = 4 }
 
     private fun iou(a: RectF, b: RectF): Float {
         val ix = max(0f, min(a.right, b.right) - max(a.left, b.left))

@@ -11,7 +11,7 @@ class CollisionWarning(
     private val laneRight: Float = 0.70f,
     private val ttcWarnS: Float = 3.0f,
     private val minGapM: Float = 5.0f,
-    private val minHits: Int = 3,
+    private val minHits: Int = 4,
 ) {
     fun check(tracks: List<VehicleTracker.Track>, imgW: Int): VehicleTracker.Track? =
         tracks.filter { t ->

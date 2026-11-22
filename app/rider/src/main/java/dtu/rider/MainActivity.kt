@@ -119,7 +119,7 @@ class MainActivity : AppCompatActivity() {
                 val dir = sensors.startRecording()
                 crash.recalibrate()
                 binding.record.text = "Stop recording"
-                Toast.makeText(this, "Recording to $dir", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Recording sensor + detection data (no video). Saved to Download/RiderAssist on Stop.", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -211,13 +211,20 @@ class MainActivity : AppCompatActivity() {
         lastFrameNs = now
         val w = bmp.width; val h = bmp.height
 
-        res.road?.let { dets ->
+        val gps = sensors.freshLocation()
+        res.road?.let { raw ->
+            // Hide implausible sign boxes (speedometer, close-ups) from the overlay as well.
+            val dets = raw.filter { !signBoard.isSign(it) || signBoard.plausible(it, w, h) }
             lastRoad = dets
-            val fresh = signBoard.update(dets, distance.focalPx(w, h), sensors.lastLocation, System.currentTimeMillis())
+            val fresh = signBoard.update(dets, w, h, distance.focalPx(w, h), gps, System.currentTimeMillis())
             fresh.forEach { alerts.post(Alert(AlertLevel.SIGN, SignBoard.pretty(it.label), "sign_${it.label}")) }
             val signText = signBoard.current().joinToString("\n") { sgn ->
-                val rem = sgn.remaining(sensors.lastLocation)
-                SignBoard.pretty(sgn.label) + (rem?.let { "  ~%.0f m".format(it.coerceAtLeast(0f)) } ?: "")
+                val rem = sgn.remaining(gps)
+                SignBoard.pretty(sgn.label) + when {
+                    rem == null -> ""
+                    rem <= 2f -> "  (passing)"
+                    else -> "  ~%.0f m".format(rem)
+                }
             }
             runOnUiThread {
                 binding.signs.text = signText
@@ -228,7 +235,12 @@ class MainActivity : AppCompatActivity() {
                 dets.map { "${it.classId},${it.label},${"%.3f".format(it.score)},${it.box.left.toInt()},${it.box.top.toInt()},${it.box.right.toInt()},${it.box.bottom.toInt()}" },
                 w, h)
         }
-        res.vehicles?.let { vdets ->
+        res.vehicles?.let { all ->
+            // Drop the rider's own bike: wide box at the bottom-centre of the frame (23% of detections in the first ride).
+            val vdets = all.filter { d ->
+                val ego = d.box.bottom > 0.9f * h && d.box.width() > 0.35f * w && d.box.centerX() in 0.2f * w..0.8f * w
+                !ego
+            }
             val tracks = tracker.update(vdets, w, h, System.currentTimeMillis())
             lastTracks = tracks
             collision.check(tracks, w)?.let { t ->
@@ -247,7 +259,11 @@ class MainActivity : AppCompatActivity() {
         }
         binding.overlay.update(lastRoad + vehicleBoxes, w, h, potholeWarning.pathZone(w, h))
 
-        val speedKmh = sensors.lastSpeedMps?.let { "%.0f km/h".format(it * 3.6f) } ?: "no GPS"
+        val speedKmh = when {
+            gps == null && sensors.lastLocation != null -> "GPS stale"
+            gps == null -> "no GPS"
+            else -> sensors.lastSpeedMps?.let { "%.0f km/h".format(it * 3.6f) } ?: "no speed"
+        }
         val gpu = if (detector?.usingGpu == true) "GPU" else "CPU"
         runOnUiThread {
             binding.stats.text = "FPS %.1f | road %d ms | veh %d ms | %s | %s %s%s".format(

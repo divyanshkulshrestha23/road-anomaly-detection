@@ -38,8 +38,19 @@ class SensorLogger(private val context: Context) : SensorEventListener {
     private val listeners = mutableListOf<Listener>()
 
     private val gyro = FloatArray(3)
+    // Android treats the requested rate as a hint (a Galaxy S23 FE delivered 500 Hz). Keep ~50 Hz so the
+    // crash detector's timing and the CSV size match the design.
+    private var lastAccelNs = 0L
+    private val minAccelIntervalNs = 18_000_000L
     @Volatile var lastSpeedMps: Float? = null; private set
     @Volatile var lastLocation: Location? = null; private set
+
+    /** Last fix if it is less than [maxAgeMs] old, else null (stale GPS must not drive sign removal). */
+    fun freshLocation(maxAgeMs: Long = 5000L): Location? {
+        val l = lastLocation ?: return null
+        val ageMs = (android.os.SystemClock.elapsedRealtimeNanos() - l.elapsedRealtimeNanos) / 1_000_000
+        return if (ageMs <= maxAgeMs) l else null
+    }
 
     private var imuOut: BufferedWriter? = null
     private var gpsOut: BufferedWriter? = null
@@ -157,6 +168,8 @@ class SensorLogger(private val context: Context) : SensorEventListener {
         when (e.sensor.type) {
             Sensor.TYPE_GYROSCOPE -> { gyro[0] = e.values[0]; gyro[1] = e.values[1]; gyro[2] = e.values[2] }
             Sensor.TYPE_ACCELEROMETER -> {
+                if (e.timestamp - lastAccelNs < minAccelIntervalNs) return
+                lastAccelNs = e.timestamp
                 val (ax, ay, az) = Triple(e.values[0], e.values[1], e.values[2])
                 listeners.forEach { it.onImu(e.timestamp, ax, ay, az, gyro[0], gyro[1], gyro[2]) }
                 imuOut?.let { w -> safeWrite(w) { it.write("${e.timestamp},${System.currentTimeMillis()},$ax,$ay,$az,${gyro[0]},${gyro[1]},${gyro[2]}\n") } }

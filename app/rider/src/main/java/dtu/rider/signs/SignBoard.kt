@@ -14,7 +14,9 @@ import dtu.rider.detect.Detection
  */
 class SignBoard(
     private val signLabels: Set<String> = setOf("regulatory", "warning", "hospital", "school", "speed_limit"),
-    private val minScore: Float = 0.45f,
+    private val minScore: Float = 0.55f,
+    private val maxWidthFrac: Float = 0.25f,   // real signs seen from the bike are small (ride data: 2-8%)
+    private val maxBottomFrac: Float = 0.85f,  // and never at the bottom of the frame (dashboard, speedometer)
     private val window: Int = 3,
     private val minHits: Int = 2,
     private val signWidthM: Float = 0.75f,
@@ -40,9 +42,15 @@ class SignBoard(
     private val history = ArrayDeque<Set<String>>()
     private val active = LinkedHashMap<String, ActiveSign>()
 
+    fun isSign(d: Detection) = d.label in signLabels
+
+    /** Rejects close-up look-alikes (keyboard keys, the bike's own round speedometer). */
+    fun plausible(d: Detection, imgW: Int, imgH: Int) =
+        d.box.width() <= maxWidthFrac * imgW && d.box.bottom <= maxBottomFrac * imgH
+
     /** Call on every road-model frame. Returns signs that became active on this frame. */
-    fun update(dets: List<Detection>, focalPx: Float, location: Location?, nowMs: Long): List<ActiveSign> {
-        val seen = dets.filter { it.label in signLabels && it.score >= minScore }
+    fun update(dets: List<Detection>, imgW: Int, imgH: Int, focalPx: Float, location: Location?, nowMs: Long): List<ActiveSign> {
+        val seen = dets.filter { isSign(it) && it.score >= minScore && plausible(it, imgW, imgH) }
         history.addLast(seen.map { it.label }.toSet())
         while (history.size > window) history.removeFirst()
         val fresh = mutableListOf<ActiveSign>()

@@ -163,8 +163,18 @@ def main() -> int:
                   f"lowest TTC {ttc.min():.1f} s" if ttc.notna().any() else f"- {veh['track_id'].nunique()} tracks, closest {veh['distance_m'].min():.1f} m", ""]
 
     if imu is not None and "t_wall_ms" in imu:
+        lines += ["## Crash rule replay"]
         rule = CrashRule(impact_g=a.impact_g, tilt_deg=a.tilt_deg, max_speed_after=a.max_speed_after, still_std=a.still_std)
-        ev = [("imu", int(r.t_wall_ms), r.ax, r.ay, r.az) for r in imu.itertuples()]
+        # The app keeps ~50 Hz (>= 18 ms apart) even if the phone delivers more; replay the same stream.
+        keep, last = [], None
+        for t_ns in imu["t_ns"]:
+            ok = last is None or t_ns - last >= 18_000_000
+            keep.append(ok)
+            if ok:
+                last = t_ns
+        imu50 = imu[keep]
+        lines.append(f"Replay uses {len(imu50)} of {len(imu)} IMU samples (~50 Hz, as the app does).")
+        ev = [("imu", int(r.t_wall_ms), r.ax, r.ay, r.az) for r in imu50.itertuples()]
         if gps is not None and "t_wall_ms" in gps:
             ev += [("gps", int(r.t_wall_ms), r.speed_mps) for r in gps.itertuples()]
         ev.sort(key=lambda e: e[1])
@@ -176,7 +186,7 @@ def main() -> int:
         if rule.cur is not None:
             rule.cur.setdefault("outcome", "ride ended during evaluation"); rule.events.append(rule.cur)
         t0 = int(imu["t_wall_ms"].iloc[0])
-        lines += ["## Crash rule replay", f"Thresholds: {rule.p}", ""]
+        lines += [f"Thresholds: {rule.p}", ""]
         if rule.events:
             lines += ["| t (s) | peak g | speed before (km/h) | max tilt | tilt ok | speed ok | still ok | outcome |", "|---|---|---|---|---|---|---|---|"]
             for c in rule.events:
